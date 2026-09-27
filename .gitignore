@@ -74,3 +74,4 @@ server.log
 /Caddyfile
 /prisma/
 /bun.lock
+tool-results

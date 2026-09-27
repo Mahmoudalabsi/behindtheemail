@@ -75,3 +75,5 @@ server.log
 /prisma/
 /bun.lock
 tool-results
+/worker/.wrangler
+/worker/node_modules

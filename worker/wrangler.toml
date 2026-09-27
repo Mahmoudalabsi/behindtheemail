@@ -1,0 +1,9 @@
+name = "behindtheemail-osint"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Optional: HaveIBeenPwned API key (HIBP_API_TOKEN env var in secret).
+# Without it, breach data is skipped silently.
+
+# Public routes — anyone can call GET /api/lookup?email=...

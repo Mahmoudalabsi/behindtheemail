@@ -20,11 +20,23 @@ import {
   Globe,
   Server,
   AlertTriangle,
+  Code,
+  MessageSquare,
+  Image,
+  Gamepad2,
+  Send,
+  User,
 } from "lucide-react";
 
 // ----------------- Types matching the Worker response -----------------
 
-interface EmailValidation { valid: boolean; localPart: string; domain: string; }
+interface EmailValidation {
+  valid: boolean;
+  localPart: string;
+  domain: string;
+  isServiceEmail: boolean;
+  serviceType: string | null;
+}
 interface MxResult { hasMx: boolean; mxRecords: string[]; provider: string | null; }
 interface GravatarResult {
   exists: boolean;
@@ -65,13 +77,21 @@ interface HIBPResult {
 }
 interface ServiceProbe {
   service: string;
+  category: "developer" | "social" | "creative" | "gaming" | "forum" | "blog" | "professional" | "messaging";
   icon: string;
   profileUrl: string;
   matched: boolean;
+  matchType: "email" | "username-guess";
+  confidence: "high" | "medium" | "low";
   username?: string;
   avatarUrl?: string;
   displayName?: string;
   bio?: string;
+  location?: string;
+  joinedAt?: string;
+  followerCount?: number;
+  followingCount?: number;
+  postCount?: number;
   extra?: Record<string, string>;
 }
 interface LookupResult {
@@ -85,8 +105,10 @@ interface LookupResult {
   hibp: HIBPResult;
   services: ServiceProbe[];
   sourcesMatched: number;
+  matchedAccounts: number;
   riskScore: "Low" | "Moderate" | "Elevated" | "High";
   summary: string;
+  probesByCategory: Record<string, number>;
   error?: string;
 }
 
@@ -94,19 +116,39 @@ const SERVICE_ICONS: Record<string, any> = {
   github: Github,
   google: Globe,
   microsoft: Briefcase,
-  reddit: Twitter,
+  reddit: MessageSquare,
   tumblr: Globe,
+  code: Code,
+  news: Twitter,
+  image: Image,
+  user: User,
+  shield: ShieldAlert,
+  send: Send,
+  gamepad: Gamepad2,
+  video: Camera,
+  message: MessageSquare,
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  developer: "Developer",
+  social: "Social",
+  creative: "Creative",
+  gaming: "Gaming",
+  forum: "Forums",
+  blog: "Blog",
+  professional: "Professional",
+  messaging: "Messaging",
 };
 
 const WORKER_URL = "https://behindtheemail-osint.mahmoudalabsi0599.workers.dev";
 
 const SCAN_STEPS = [
   { label: "Validating email format & domain",        icon: Mail },
-  { label: "Resolving MX records via Cloudflare DNS", icon: Server },
-  { label: "Querying Gravatar for profile + avatar",  icon: Camera },
-  { label: "Searching GitHub public emails",          icon: Github },
+  { label: "Resolving MX records via Cloudflare DNS",  icon: Server },
+  { label: "Querying Gravatar profile + avatar",       icon: Camera },
+  { label: "Searching GitHub public emails",           icon: Github },
   { label: "Scanning HaveIBeenPwned breach corpus",   icon: ShieldAlert },
-  { label: "Probing Reddit, Tumblr, Google accounts", icon: Globe },
+  { label: "Probing 17+ services for username matches", icon: Globe },
   { label: "Cross-referencing & compiling report",    icon: Check },
 ];
 
@@ -125,12 +167,11 @@ export default function LiveResults({ email }: { email: string }) {
     setScanStep(0);
 
     const run = async () => {
-      // Animate scan steps while the real fetch is in flight
       const stepTimers: ReturnType<typeof setTimeout>[] = [];
       SCAN_STEPS.forEach((_, i) => {
         const t = setTimeout(() => {
           if (!cancelledRef.current) setScanStep(i);
-        }, 400 * i + (i === 4 ? 200 : 0));
+        }, 350 * i + (i === 4 ? 200 : 0));
         stepTimers.push(t);
       });
 
@@ -139,7 +180,6 @@ export default function LiveResults({ email }: { email: string }) {
         const json = (await r.json()) as LookupResult & { error?: string };
         if (!r.ok) throw new Error(json.error || `Lookup failed (${r.status})`);
 
-        // Clear pending step timers and jump to final
         for (const t of stepTimers) clearTimeout(t);
         if (cancelledRef.current) return;
         setScanStep(SCAN_STEPS.length - 1);
@@ -231,23 +271,29 @@ export default function LiveResults({ email }: { email: string }) {
       });
     }
 
-    // Other services (matched ones)
+    // Other matched services
     for (const s of d.services) {
       if (!s.matched) continue;
+      if (s.service === "Gravatar" || s.service === "GitHub") continue; // already shown above
       cards.push({
         title: s.service,
         source: s.profileUrl,
         icon: SERVICE_ICONS[s.icon] || Globe,
-        matchStrength: "moderate",
+        matchStrength: s.confidence === "high" ? "strong" : s.confidence === "medium" ? "moderate" : "weak",
         photoUrl: s.avatarUrl,
         fields: [
           { label: "Username", value: s.username || "—" },
-          { label: "Display name", value: s.displayName || "—" },
-          { label: "Bio", value: s.bio || "—" },
+          ...(s.displayName ? [{ label: "Display name", value: s.displayName }] : []),
+          ...(s.bio ? [{ label: "Bio", value: s.bio }] : []),
+          ...(s.location ? [{ label: "Location", value: s.location }] : []),
+          ...(s.joinedAt ? [{ label: "Joined", value: s.joinedAt }] : []),
+          ...(s.followerCount != null ? [{ label: "Followers", value: s.followerCount.toLocaleString() }] : []),
+          ...(s.postCount != null ? [{ label: "Posts", value: s.postCount.toLocaleString() }] : []),
           ...(s.extra ? Object.entries(s.extra).map(([k, v]) => ({
             label: k.replace(/_/g, " "),
             value: v,
           })) : []),
+          { label: "Match type", value: s.matchType === "email" ? "Email-based (definitive)" : "Username-guess (heuristic)" },
         ],
       });
     }
@@ -361,9 +407,7 @@ export default function LiveResults({ email }: { email: string }) {
           <div className="rounded-2xl glass p-6 sm:p-8 text-center">
             <AlertTriangle className="h-8 w-8 text-yellow-300 mx-auto mb-3" />
             <p className="text-sm font-semibold mb-1">Lookup failed</p>
-            <p className="text-xs text-text-accent mb-5 max-w-md mx-auto">
-              {error}. Please check the email is valid and try again.
-            </p>
+            <p className="text-xs text-text-accent mb-5 max-w-md mx-auto">{error}</p>
             <button
               onClick={() => document.getElementById("top")?.scrollIntoView({ behavior: "smooth" })}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-xs rounded-md glass hover:border-brand-primary/40 transition-colors"
@@ -406,9 +450,7 @@ export default function LiveResults({ email }: { email: string }) {
                     </h3>
                     <span className="font-mono text-xs text-text-accent break-all">{data.email}</span>
                   </div>
-                  <p className="mt-1 text-sm text-text-accent">
-                    {data.summary}
-                  </p>
+                  <p className="mt-1 text-sm text-text-accent">{data.summary}</p>
                   <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
                     <span className="rounded-full bg-brand-primary/10 ring-1 ring-brand-primary/30 px-2.5 py-0.5 text-brand-primary">
                       {data.sourcesMatched} sources matched
@@ -426,6 +468,11 @@ export default function LiveResults({ email }: { email: string }) {
                     }`}>
                       Risk: {data.riskScore}
                     </span>
+                    {data.validation.isServiceEmail && (
+                      <span className="rounded-full bg-purple-400/10 text-purple-300 ring-1 ring-purple-300/30 px-2.5 py-0.5">
+                        Service email ({data.validation.serviceType}@)
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -434,86 +481,75 @@ export default function LiveResults({ email }: { email: string }) {
             {/* Quick stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <StatCard label="Sources matched" value={String(data.sourcesMatched)} />
-              <StatCard label="Breaches found" value={data.hibp.checked ? String(data.hibp.count) : "—"} />
+              <StatCard label="Accounts found" value={String(data.matchedAccounts)} />
               <StatCard label="Services probed" value={String(data.services.length)} />
-              <StatCard label="Avatar found" value={data.gravatar.exists || data.github.avatarUrl ? "Yes" : "No"} />
+              <StatCard label="Breaches found" value={data.hibp.checked ? String(data.hibp.count) : "—"} />
             </div>
 
-            {/* Source cards */}
+            {/* Services matrix — THE BIG NEW SECTION */}
+            <ServicesMatrix services={data.services} />
+
+            {/* Source cards (matched ones with details) */}
             {buildCards(data).length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {buildCards(data).map((card, idx) => {
-                  const Icon = card.icon;
-                  const badge = MATCH_BADGE[card.matchStrength] || MATCH_BADGE.weak;
-                  return (
-                    <div
-                      key={card.title + idx}
-                      className="rounded-xl glass p-4 lift-on-hover animate-slide-in"
-                      style={{ animationDelay: `${idx * 60}ms` }}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/5 ring-1 ring-white/10 overflow-hidden">
-                            {card.photoUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={card.photoUrl} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                              <Icon className="h-3.5 w-3.5" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold">{card.title}</p>
-                            <p className="text-[10px] text-text-accent/70 font-mono truncate max-w-[140px]">{card.source}</p>
-                          </div>
-                        </div>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full ring-1 ${badge.color}`}>
-                          {badge.label}
-                        </span>
-                      </div>
-                      <div className="space-y-1.5">
-                        {card.fields.map((f, i) => (
-                          <div key={i} className="flex items-start gap-2 py-0.5">
-                            <span className="text-[10px] uppercase tracking-wider text-text-accent/70 w-20 shrink-0 pt-0.5 break-words">
-                              {f.label}
-                            </span>
-                            <span className="text-xs text-text-primary flex-1 break-words">{f.value}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <a
-                        href={card.source.startsWith("http") ? card.source : `https://${card.source.split("/")[0]}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-3 inline-flex items-center gap-1 text-[10px] text-brand-primary hover:underline"
+              <div>
+                <h3 className="text-sm font-semibold mb-3 text-text-accent">
+                  Detailed profiles
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {buildCards(data).map((card, idx) => {
+                    const Icon = card.icon;
+                    const badge = MATCH_BADGE[card.matchStrength] || MATCH_BADGE.weak;
+                    return (
+                      <div
+                        key={card.title + idx}
+                        className="rounded-xl glass p-4 lift-on-hover animate-slide-in"
+                        style={{ animationDelay: `${idx * 60}ms` }}
                       >
-                        <ExternalLink className="h-3 w-3" /> View source
-                      </a>
-                    </div>
-                  );
-                })}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/5 ring-1 ring-white/10 overflow-hidden">
+                              {card.photoUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={card.photoUrl} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <Icon className="h-3.5 w-3.5" />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold">{card.title}</p>
+                              <p className="text-[10px] text-text-accent/70 font-mono truncate max-w-[140px]">{card.source}</p>
+                            </div>
+                          </div>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full ring-1 ${badge.color}`}>
+                            {badge.label}
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {card.fields.map((f, i) => (
+                            <div key={i} className="flex items-start gap-2 py-0.5">
+                              <span className="text-[10px] uppercase tracking-wider text-text-accent/70 w-24 shrink-0 pt-0.5 break-words">
+                                {f.label}
+                              </span>
+                              <span className="text-xs text-text-primary flex-1 break-words">{f.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <a
+                          href={card.source.startsWith("http") ? card.source : `https://${card.source.split("/")[0]}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-3 inline-flex items-center gap-1 text-[10px] text-brand-primary hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" /> View source
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
-            {/* Unmatched services summary */}
-            <div className="rounded-xl glass p-4">
-              <p className="text-xs font-semibold mb-2">Other services probed (no match)</p>
-              <div className="flex flex-wrap gap-2">
-                {data.services.filter((s) => !s.matched).map((s) => (
-                  <a
-                    key={s.service}
-                    href={s.profileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[11px] text-text-accent/60 hover:text-text-accent transition-colors"
-                    title={`Probed ${s.service} — no public account found`}
-                  >
-                    <X className="h-3 w-3" /> {s.service}
-                  </a>
-                ))}
-              </div>
-            </div>
-
-            {/* HIBP error notice (if API key missing) */}
+            {/* HIBP error notice */}
             {data.hibp.error && (
               <div className="rounded-xl glass p-4 flex items-start gap-3">
                 <AlertTriangle className="h-4 w-4 text-yellow-300 shrink-0 mt-0.5" />
@@ -533,8 +569,10 @@ export default function LiveResults({ email }: { email: string }) {
               <Lock className="h-4 w-4 text-text-accent/60 shrink-0 mt-0.5" />
               <p className="text-[11px] text-text-accent/80 leading-relaxed">
                 <span className="text-text-accent">Live lookup:</span> This scan was performed in real time
-                against public APIs (Gravatar, GitHub, HaveIBeenPwned, Cloudflare DNS, Reddit, Tumblr). No
-                data is stored. The Worker is open-source in this repo at <code className="font-mono">worker/src/index.ts</code>.
+                against public APIs (Cloudflare DNS, Gravatar, GitHub, HaveIBeenPwned, Reddit, Tumblr,
+                GitLab, Bitbucket, HackerNews, Keybase, Medium, Pastebin, Dev.to, About.me, Pinterest,
+                Instagram, Telegram, Steam, Roblox, Twitch, Imgur). No data is stored. The Worker is
+                open-source in this repo at <code className="font-mono">worker/src/index.ts</code>.
               </p>
             </div>
 
@@ -551,6 +589,95 @@ export default function LiveResults({ email }: { email: string }) {
         )}
       </div>
     </section>
+  );
+}
+
+// ----------------- Services Matrix sub-component -----------------
+
+function ServicesMatrix({ services }: { services: ServiceProbe[] }) {
+  // Group by category
+  const byCategory: Record<string, ServiceProbe[]> = {};
+  for (const s of services) {
+    if (!byCategory[s.category]) byCategory[s.category] = [];
+    byCategory[s.category].push(s);
+  }
+
+  const matchedCount = services.filter((s) => s.matched).length;
+  const totalCount = services.length;
+
+  return (
+    <div className="rounded-2xl glass p-5 sm:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-sm font-semibold">Services &amp; accounts probed</h3>
+          <p className="text-[11px] text-text-accent mt-0.5">
+            Each service was checked for an account matching this email or its local-part as username.
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-2xl font-bold text-brand-gradient">{matchedCount}/{totalCount}</p>
+          <p className="text-[10px] text-text-accent uppercase tracking-wider">matched</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {Object.entries(byCategory).map(([cat, items]) => (
+          <div key={cat}>
+            <p className="text-[10px] uppercase tracking-wider text-text-accent/70 mb-2">
+              {CATEGORY_LABELS[cat] || cat}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {items.map((s) => {
+                const Icon = SERVICE_ICONS[s.icon] || Globe;
+                return (
+                  <a
+                    key={s.service}
+                    href={s.profileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`group flex items-center gap-2 px-3 py-2 rounded-lg ring-1 transition-all ${
+                      s.matched
+                        ? "bg-brand-primary/10 ring-brand-primary/30 hover:bg-brand-primary/15"
+                        : "bg-white/[0.02] ring-white/5 hover:ring-white/10"
+                    }`}
+                    title={s.matched ? `Match found — ${s.matchType === "email" ? "email-based" : "username-guess"}` : "No account found"}
+                  >
+                    <Icon className={`h-3.5 w-3.5 shrink-0 ${s.matched ? "text-brand-primary" : "text-text-accent/50"}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-medium truncate ${s.matched ? "text-text-primary" : "text-text-accent/70"}`}>
+                        {s.service}
+                      </p>
+                      {s.matched && s.username && (
+                        <p className="text-[10px] font-mono text-text-accent truncate">@{s.username}</p>
+                      )}
+                    </div>
+                    {s.matched ? (
+                      <Check className="h-3.5 w-3.5 text-brand-primary shrink-0" />
+                    ) : (
+                      <X className="h-3.5 w-3.5 text-text-accent/40 shrink-0" />
+                    )}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div className="mt-5 pt-4 border-t border-white/5 flex flex-wrap items-center gap-4 text-[10px] text-text-accent/70">
+        <span className="inline-flex items-center gap-1.5">
+          <Check className="h-3 w-3 text-brand-primary" /> Account found
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <X className="h-3 w-3 text-text-accent/40" /> No account
+        </span>
+        <span className="text-text-accent/50">
+          Note: For services without email-based lookup, the email&apos;s local-part is used as a username guess.
+          Matches marked &ldquo;username-guess&rdquo; should be verified manually.
+        </span>
+      </div>
+    </div>
   );
 }
 

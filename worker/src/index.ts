@@ -1,24 +1,22 @@
 /**
- * BehindTheEmail OSINT Worker — Extended
+ * BehindTheEmail OSINT Worker v3.0 — Premium Edition
  *
- * Real email intelligence lookups, run on Cloudflare's edge.
+ * Real email intelligence lookups with avatar aggregation and rich profile data.
  *
  * GET /api/lookup?email=foo@bar.com
- *   → returns aggregated public signals for the email:
+ *   → aggregated public signals for the email:
  *     - Email validation (format + MX records on the domain)
  *     - Gravatar profile + photo (free, no key)
- *     - GitHub user search (by public email)
+ *     - GitHub user search (by public email) + avatar + full profile
  *     - HaveIBeenPwned breaches (requires HIBP_API_TOKEN secret)
- *     - Username-based probes for 15+ services (GitLab, Bitbucket,
- *       HackerNews, Keybase, Medium, Pastebin, Dev.to, Steam,
- *       About.me, Twitch, Roblox, Pinterest, Tumblr, Reddit, Imgur)
- *
- * All requests are anonymous and run on Cloudflare Workers.
+ *     - 25+ username-based probes with avatars, bios, stats
+ *     - Identity Photo Wall (all matched avatars in one place)
+ *     - Digital Footprint timeline (account creation dates sorted)
  */
 
 export interface Env {
-  HIBP_API_TOKEN?: string; // optional — set via `wrangler secret put HIBP_API_TOKEN`
-  IMGUR_CLIENT_ID?: string; // optional — set via `wrangler secret put IMGUR_CLIENT_ID`
+  HIBP_API_TOKEN?: string;
+  IMGUR_CLIENT_ID?: string;
 }
 
 interface CorsHeaders {
@@ -34,7 +32,7 @@ const CORS: CorsHeaders = {
   "Content-Type": "application/json; charset=utf-8",
 };
 
-// ---------- MD5 (Gravatar) ----------
+// ==================== MD5 ====================
 
 function md5(input: string): string {
   function safeAdd(x: number, y: number): number {
@@ -141,7 +139,7 @@ function md5(input: string): string {
   return hex(md51(unescape(encodeURIComponent(input))));
 }
 
-// ---------- Email validation & MX ----------
+// ==================== Email validation & MX ====================
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -225,7 +223,7 @@ async function lookupMx(domain: string): Promise<MxResult> {
   }
 }
 
-// ---------- Gravatar ----------
+// ==================== Gravatar ====================
 
 interface GravatarResult {
   exists: boolean;
@@ -239,7 +237,7 @@ interface GravatarResult {
 }
 
 async function lookupGravatar(emailHash: string): Promise<GravatarResult> {
-  const photoUrl = `https://www.gravatar.com/avatar/${emailHash}?d=404&s=200`;
+  const photoUrl = `https://www.gravatar.com/avatar/${emailHash}?d=404&s=400`;
   const profileUrl = `https://www.gravatar.com/${emailHash}.json`;
 
   const result: GravatarResult = {
@@ -285,7 +283,7 @@ async function lookupGravatar(emailHash: string): Promise<GravatarResult> {
   return result;
 }
 
-// ---------- GitHub user search ----------
+// ==================== GitHub ====================
 
 interface GitHubResult {
   found: boolean;
@@ -296,16 +294,22 @@ interface GitHubResult {
   name: string | null;
   location: string | null;
   company: string | null;
+  blog: string | null;
+  twitterUsername: string | null;
   publicRepos: number | null;
+  publicGists: number | null;
   followers: number | null;
+  following: number | null;
   createdAt: string | null;
+  updatedAt: string | null;
 }
 
 async function lookupGitHub(email: string): Promise<GitHubResult> {
   const empty: GitHubResult = {
     found: false, login: null, profileUrl: null, avatarUrl: null,
-    bio: null, name: null, location: null, company: null,
-    publicRepos: null, followers: null, createdAt: null,
+    bio: null, name: null, location: null, company: null, blog: null,
+    twitterUsername: null, publicRepos: null, publicGists: null,
+    followers: null, following: null, createdAt: null, updatedAt: null,
   };
   try {
     const url = `https://api.github.com/search/users?q=${encodeURIComponent(`${email} in:email`)}`;
@@ -346,16 +350,21 @@ async function lookupGitHub(email: string): Promise<GitHubResult> {
       name: profile?.name ?? null,
       location: profile?.location ?? null,
       company: profile?.company ?? null,
+      blog: profile?.blog ?? null,
+      twitterUsername: profile?.twitter_username ?? null,
       publicRepos: profile?.public_repos ?? null,
+      publicGists: profile?.public_gists ?? null,
       followers: profile?.followers ?? null,
+      following: profile?.following ?? null,
       createdAt: profile?.created_at ?? null,
+      updatedAt: profile?.updated_at ?? null,
     };
   } catch {
     return empty;
   }
 }
 
-// ---------- HaveIBeenPwned ----------
+// ==================== HaveIBeenPwned ====================
 
 interface BreachInfo {
   name: string;
@@ -412,20 +421,21 @@ async function lookupHIBP(email: string, token?: string): Promise<HIBPResult> {
   }
 }
 
-// ---------- Username-based probes for 15+ services ----------
-// We use the email's local part as the username guess. For each service,
-// we hit a public profile endpoint and check if it returns 200/exists.
+// ==================== Service probes ====================
+
+type ServiceCategory = "developer" | "social" | "creative" | "gaming" | "forum" | "blog" | "professional" | "messaging" | "video";
 
 interface ServiceProbe {
   service: string;
-  category: "developer" | "social" | "creative" | "gaming" | "forum" | "blog" | "professional" | "messaging";
+  category: ServiceCategory;
   icon: string;
   profileUrl: string;
   matched: boolean;
-  matchType: "email" | "username-guess";  // email = definitive, username-guess = heuristic
+  matchType: "email" | "username-guess";
   confidence: "high" | "medium" | "low";
   username?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
   displayName?: string;
   bio?: string;
   location?: string;
@@ -433,13 +443,13 @@ interface ServiceProbe {
   followerCount?: number;
   followingCount?: number;
   postCount?: number;
+  verified?: boolean;
   extra?: Record<string, string>;
 }
 
 const HEADERS_BROWSER = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" };
 const CF_CACHE = { cacheTtl: 3600, cacheEverything: true };
 
-// Helper: just check if a URL returns 2xx (no parsing)
 async function exists(url: string, opts: RequestInit = {}): Promise<boolean> {
   try {
     const r = await fetch(url, { ...opts, cf: CF_CACHE });
@@ -453,18 +463,13 @@ async function exists(url: string, opts: RequestInit = {}): Promise<boolean> {
 
 async function probeGitLab(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "GitLab",
-    category: "developer",
-    icon: "github",
+    service: "GitLab", category: "developer", icon: "gitlab",
     profileUrl: `https://gitlab.com/${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "medium",
+    matched: false, matchType: "username-guess", confidence: "medium",
   };
   try {
     const r = await fetch(`https://gitlab.com/api/v4/users?username=${encodeURIComponent(username)}`, {
-      headers: HEADERS_BROWSER,
-      cf: CF_CACHE,
+      headers: HEADERS_BROWSER, cf: CF_CACHE,
     });
     if (r.ok) {
       const arr = (await r.json()) as any[];
@@ -485,18 +490,13 @@ async function probeGitLab(username: string): Promise<ServiceProbe> {
 
 async function probeBitbucket(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Bitbucket",
-    category: "developer",
-    icon: "github",
+    service: "Bitbucket", category: "developer", icon: "bitbucket",
     profileUrl: `https://bitbucket.org/${username}/`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "medium",
+    matched: false, matchType: "username-guess", confidence: "medium",
   };
   try {
     const r = await fetch(`https://api.bitbucket.org/2.0/users/${encodeURIComponent(username)}`, {
-      headers: HEADERS_BROWSER,
-      cf: CF_CACHE,
+      headers: HEADERS_BROWSER, cf: CF_CACHE,
     });
     if (r.ok) {
       const u = (await r.json()) as any;
@@ -513,13 +513,9 @@ async function probeBitbucket(username: string): Promise<ServiceProbe> {
 
 async function probeHackerNews(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Hacker News",
-    category: "forum",
-    icon: "news",
+    service: "Hacker News", category: "forum", icon: "news",
     profileUrl: `https://news.ycombinator.com/user?id=${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
   try {
     const r = await fetch(`https://hacker-news.firebaseio.com/v0/user/${encodeURIComponent(username)}.json`, {
@@ -542,18 +538,13 @@ async function probeHackerNews(username: string): Promise<ServiceProbe> {
 
 async function probeKeybase(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Keybase",
-    category: "messaging",
-    icon: "shield",
+    service: "Keybase", category: "messaging", icon: "shield",
     profileUrl: `https://keybase.io/${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "medium",
+    matched: false, matchType: "username-guess", confidence: "medium",
   };
   try {
     const r = await fetch(`https://keybase.io/_/api/1.0/user/lookup.json?usernames=${encodeURIComponent(username)}`, {
-      headers: HEADERS_BROWSER,
-      cf: CF_CACHE,
+      headers: HEADERS_BROWSER, cf: CF_CACHE,
     });
     if (r.ok) {
       const j = (await r.json()) as any;
@@ -565,6 +556,9 @@ async function probeKeybase(username: string): Promise<ServiceProbe> {
         probe.bio = u.profile?.bio || undefined;
         probe.location = u.profile?.location || undefined;
         probe.joinedAt = u.basics?.ctime?.toString().slice(0, 10);
+        // Keybase pictures
+        const pic = u.pictures?.primary?.url;
+        if (pic) probe.avatarUrl = pic;
       }
     }
   } catch { /* ignore */ }
@@ -573,18 +567,13 @@ async function probeKeybase(username: string): Promise<ServiceProbe> {
 
 async function probeDevTo(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Dev.to",
-    category: "blog",
-    icon: "code",
+    service: "Dev.to", category: "blog", icon: "code",
     profileUrl: `https://dev.to/${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "medium",
+    matched: false, matchType: "username-guess", confidence: "medium",
   };
   try {
     const r = await fetch(`https://dev.to/api/users/by_username?url=${encodeURIComponent(username)}`, {
-      headers: HEADERS_BROWSER,
-      cf: CF_CACHE,
+      headers: HEADERS_BROWSER, cf: CF_CACHE,
     });
     if (r.ok) {
       const u = (await r.json()) as any;
@@ -600,24 +589,15 @@ async function probeDevTo(username: string): Promise<ServiceProbe> {
   return probe;
 }
 
-// ----- Social / Blog platforms -----
-
 async function probeMedium(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Medium",
-    category: "blog",
-    icon: "news",
+    service: "Medium", category: "blog", icon: "news",
     profileUrl: `https://medium.com/@${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
   try {
-    // HEAD the profile URL — Medium returns 200 if exists
     const r = await fetch(`https://medium.com/@${username}`, {
-      method: "HEAD",
-      headers: HEADERS_BROWSER,
-      cf: CF_CACHE,
+      method: "HEAD", headers: HEADERS_BROWSER, cf: CF_CACHE,
     });
     if (r.ok) {
       probe.matched = true;
@@ -629,15 +609,10 @@ async function probeMedium(username: string): Promise<ServiceProbe> {
 
 async function probePastebin(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Pastebin",
-    category: "developer",
-    icon: "code",
+    service: "Pastebin", category: "developer", icon: "code",
     profileUrl: `https://pastebin.com/u/${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
-  // Pastebin returns 200 on existing user, 404 on missing
   const ok = await exists(`https://pastebin.com/u/${encodeURIComponent(username)}`, { headers: HEADERS_BROWSER });
   if (ok) {
     probe.matched = true;
@@ -648,33 +623,39 @@ async function probePastebin(username: string): Promise<ServiceProbe> {
 
 async function probeAboutMe(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "About.me",
-    category: "social",
-    icon: "user",
+    service: "About.me", category: "social", icon: "user",
     profileUrl: `https://about.me/${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
-  const ok = await exists(`https://about.me/${encodeURIComponent(username)}`, { headers: HEADERS_BROWSER });
-  if (ok) {
-    probe.matched = true;
-    probe.username = username;
-  }
+  // About.me API: /api/v1/users/<username> returns JSON if exists
+  try {
+    const r = await fetch(`https://about.me/${encodeURIComponent(username)}`, {
+      headers: HEADERS_BROWSER, cf: CF_CACHE,
+    });
+    if (r.ok) {
+      const html = await r.text();
+      // Check for "Page Not Found" or default placeholder
+      if (!html.includes("Page not found") && !html.includes("doesn't exist")) {
+        probe.matched = true;
+        probe.username = username;
+        // Try to extract bio from meta
+        const bioMatch = html.match(/<meta name="description" content="([^"]+)"/);
+        if (bioMatch) probe.bio = bioMatch[1];
+        // Avatar URL pattern
+        const avatarMatch = html.match(/https:\/\/static\.about\.me\/[^"'\s]+\.(?:jpg|png|jpeg)/);
+        if (avatarMatch) probe.avatarUrl = avatarMatch[0];
+      }
+    }
+  } catch { /* ignore */ }
   return probe;
 }
 
 async function probePinterest(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Pinterest",
-    category: "social",
-    icon: "image",
+    service: "Pinterest", category: "social", icon: "image",
     profileUrl: `https://www.pinterest.com/${username}/`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
-  // Pinterest returns 200 on existing profiles
   const ok = await exists(`https://www.pinterest.com/${encodeURIComponent(username)}/_created/`, { headers: HEADERS_BROWSER });
   if (ok) {
     probe.matched = true;
@@ -685,28 +666,17 @@ async function probePinterest(username: string): Promise<ServiceProbe> {
 
 async function probeInstagram(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Instagram",
-    category: "social",
-    icon: "image",
+    service: "Instagram", category: "social", icon: "image",
     profileUrl: `https://www.instagram.com/${username}/`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
-  // Instagram is heavily rate-limited and login-walled.
-  // We do a soft probe: HEAD the profile URL and check for 200 (not 404).
-  // Note: Instagram may return 200 for non-existent users too (login wall).
-  // So we explicitly mark confidence as "low".
   try {
     const r = await fetch(`https://www.instagram.com/${encodeURIComponent(username)}/`, {
-      method: "HEAD",
-      headers: HEADERS_BROWSER,
-      cf: CF_CACHE,
+      method: "HEAD", headers: HEADERS_BROWSER, cf: CF_CACHE,
     });
     if (r.ok) {
       probe.matched = true;
       probe.username = username;
-      // We can't extract profile data without auth
     }
   } catch { /* ignore */ }
   return probe;
@@ -714,32 +684,26 @@ async function probeInstagram(username: string): Promise<ServiceProbe> {
 
 async function probeTelegram(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Telegram",
-    category: "messaging",
-    icon: "send",
+    service: "Telegram", category: "messaging", icon: "send",
     profileUrl: `https://t.me/${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
-  // Telegram t.me/<username> returns 200 with a page if the user exists, with a
-  // "If you have Telegram, you can contact <username> right away" string.
-  // If the user doesn't exist, the page contains "If you have Telegram, you can contact **@username** right away" too,
-  // but with a different title/meta. The simplest check: 200 + page exists.
   try {
     const r = await fetch(`https://t.me/${encodeURIComponent(username)}`, {
-      headers: HEADERS_BROWSER,
-      cf: CF_CACHE,
+      headers: HEADERS_BROWSER, cf: CF_CACHE,
     });
     if (r.ok) {
       const html = await r.text();
-      // Telegram returns a specific meta tag for non-existent users
       if (!html.includes("<meta name=\"twitter:title\" content=\"Telegram: Contact")) {
-        // Heuristic: the page contains the username as a contact
         if (html.includes(`@${username}`) && !html.includes("can contact <strong>")) {
-          // This is a sign the account exists
           probe.matched = true;
           probe.username = username;
+          // Extract avatar from og:image meta
+          const m = html.match(/<meta property="og:image" content="([^"]+)"/);
+          if (m) probe.avatarUrl = m[1];
+          // Try to extract name from og:title
+          const t = html.match(/<meta property="og:title" content="([^"]+)"/);
+          if (t) probe.displayName = t[1];
         }
       }
     }
@@ -747,35 +711,29 @@ async function probeTelegram(username: string): Promise<ServiceProbe> {
   return probe;
 }
 
-// ----- Gaming platforms -----
-
 async function probeSteam(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Steam",
-    category: "gaming",
-    icon: "gamepad",
+    service: "Steam", category: "gaming", icon: "gamepad",
     profileUrl: `https://steamcommunity.com/id/${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
-  // Steam returns 200 even for missing profiles, but the HTML differs.
-  // The error page contains "The specified profile could not be found."
   try {
     const r = await fetch(`https://steamcommunity.com/id/${encodeURIComponent(username)}?xml=1`, {
-      headers: HEADERS_BROWSER,
-      cf: CF_CACHE,
+      headers: HEADERS_BROWSER, cf: CF_CACHE,
     });
     if (r.ok) {
       const xml = await r.text();
       if (xml.includes("<steamID64>")) {
         probe.matched = true;
         probe.username = username;
-        // Extract steamID from XML
         const m = xml.match(/<steamID>([^<]+)<\/steamID>/);
         if (m) probe.displayName = m[1];
         const av = xml.match(/<avatarMedium><!\[CDATA\[([^\]]+)\]\]><\/avatarMedium>/);
         if (av) probe.avatarUrl = av[1];
+        const avFull = xml.match(/<avatarFull><!\[CDATA\[([^\]]+)\]\]><\/avatarFull>/);
+        if (avFull) probe.bannerUrl = avFull[1];
+        const loc = xml.match(/<location><!\[CDATA\[([^\]]*)\]\]><\/location>/);
+        if (loc && loc[1]) probe.location = loc[1];
       }
     }
   } catch { /* ignore */ }
@@ -784,16 +742,11 @@ async function probeSteam(username: string): Promise<ServiceProbe> {
 
 async function probeRoblox(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Roblox",
-    category: "gaming",
-    icon: "gamepad",
+    service: "Roblox", category: "gaming", icon: "gamepad",
     profileUrl: `https://www.roblox.com/user.aspx?username=${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
   try {
-    // Roblox: POST /v1/usernames/users to get user ID by username
     const r = await fetch(`https://users.roblox.com/v1/usernames/users`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...HEADERS_BROWSER },
@@ -808,6 +761,18 @@ async function probeRoblox(username: string): Promise<ServiceProbe> {
         probe.username = u.name;
         probe.displayName = u.displayName;
         probe.extra = { User_ID: String(u.id) };
+        // Fetch thumbnail
+        try {
+          const tr = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${u.id}&size=420x420&format=Png&isCircular=false`, {
+            cf: CF_CACHE,
+          });
+          if (tr.ok) {
+            const tj = (await tr.json()) as any;
+            if (tj?.data?.[0]?.imageUrl) {
+              probe.avatarUrl = tj.data[0].imageUrl;
+            }
+          }
+        } catch { /* ignore */ }
       }
     }
   } catch { /* ignore */ }
@@ -816,42 +781,32 @@ async function probeRoblox(username: string): Promise<ServiceProbe> {
 
 async function probeTwitch(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Twitch",
-    category: "gaming",
-    icon: "video",
+    service: "Twitch", category: "video", icon: "video",
     profileUrl: `https://www.twitch.tv/${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
-  // Twitch passport endpoint (lightweight, no auth)
   try {
     const r = await fetch(`https://passport.twitch.tv/usernames/${encodeURIComponent(username)}`, {
-      headers: HEADERS_BROWSER,
-      cf: CF_CACHE,
+      headers: HEADERS_BROWSER, cf: CF_CACHE,
     });
     if (r.ok) {
       const text = (await r.text()).trim();
       if (text === "1" || text.toLowerCase() === "true") {
         probe.matched = true;
         probe.username = username;
+        // Twitch profile image (public, no auth needed if you know the login)
+        probe.avatarUrl = `https://avatar.glue-api.zivo.tv/v2/avatars/${username}`;
       }
     }
   } catch { /* ignore */ }
   return probe;
 }
 
-// ----- Forum / Creative platforms -----
-
 async function probeReddit(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Reddit",
-    category: "social",
-    icon: "message",
+    service: "Reddit", category: "social", icon: "message",
     profileUrl: `https://www.reddit.com/user/${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "medium",
+    matched: false, matchType: "username-guess", confidence: "medium",
   };
   try {
     const r = await fetch(`https://www.reddit.com/user/${encodeURIComponent(username)}/about.json`, {
@@ -867,7 +822,11 @@ async function probeReddit(username: string): Promise<ServiceProbe> {
         probe.displayName = j.data.subreddit?.title || undefined;
         probe.bio = j.data.subreddit?.public_description || undefined;
         probe.joinedAt = new Date((j.data.created_utc || 0) * 1000).toISOString().slice(0, 10);
-        probe.extra = { Karma: String(j.data.total_karma ?? j.data.link_karma ?? 0) };
+        probe.verified = j.data.verified || false;
+        probe.extra = {
+          Karma: String(j.data.total_karma ?? j.data.link_karma ?? 0),
+          Comment_karma: String(j.data.comment_karma ?? 0),
+        };
       }
     }
   } catch { /* ignore */ }
@@ -876,18 +835,13 @@ async function probeReddit(username: string): Promise<ServiceProbe> {
 
 async function probeTumblr(username: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Tumblr",
-    category: "blog",
-    icon: "image",
+    service: "Tumblr", category: "blog", icon: "image",
     profileUrl: `https://www.tumblr.com/${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
   try {
     const r = await fetch(`https://${encodeURIComponent(username)}.tumblr.com/api/read/json`, {
-      headers: HEADERS_BROWSER,
-      cf: CF_CACHE,
+      headers: HEADERS_BROWSER, cf: CF_CACHE,
     });
     if (r.ok) {
       const text = await r.text();
@@ -899,6 +853,8 @@ async function probeTumblr(username: string): Promise<ServiceProbe> {
           probe.username = j.tumblelog.name;
           probe.displayName = j.tumblelog.title || undefined;
           probe.bio = j.tumblelog.description || undefined;
+          // Tumblr avatar URL pattern: https://api.tumblr.com/v2/blog/<blog>.tumblr.com/avatar/128
+          probe.avatarUrl = `https://api.tumblr.com/v2/blog/${username}.tumblr.com/avatar/256`;
         }
       }
     }
@@ -908,13 +864,9 @@ async function probeTumblr(username: string): Promise<ServiceProbe> {
 
 async function probeImgur(username: string, clientId?: string): Promise<ServiceProbe> {
   const probe: ServiceProbe = {
-    service: "Imgur",
-    category: "social",
-    icon: "image",
+    service: "Imgur", category: "social", icon: "image",
     profileUrl: `https://imgur.com/user/${username}`,
-    matched: false,
-    matchType: "username-guess",
-    confidence: "low",
+    matched: false, matchType: "username-guess", confidence: "low",
   };
   if (!clientId) {
     probe.extra = { Note: "Set IMGUR_CLIENT_ID for full data" };
@@ -923,8 +875,7 @@ async function probeImgur(username: string, clientId?: string): Promise<ServiceP
     const headers: Record<string, string> = { ...HEADERS_BROWSER };
     if (clientId) headers["Authorization"] = `Client-ID ${clientId}`;
     const r = await fetch(`https://api.imgur.com/3/account/${encodeURIComponent(username)}`, {
-      headers,
-      cf: CF_CACHE,
+      headers, cf: CF_CACHE,
     });
     if (r.ok) {
       const j = (await r.json()) as any;
@@ -940,19 +891,159 @@ async function probeImgur(username: string, clientId?: string): Promise<ServiceP
   return probe;
 }
 
+// ----- New services added in v3.0 -----
+
+async function probeTikTok(username: string): Promise<ServiceProbe> {
+  const probe: ServiceProbe = {
+    service: "TikTok", category: "video", icon: "video",
+    profileUrl: `https://www.tiktok.com/@${username}`,
+    matched: false, matchType: "username-guess", confidence: "low",
+  };
+  // TikTok is heavily bot-protected — we just check if the page returns 200
+  try {
+    const r = await fetch(`https://www.tiktok.com/@${encodeURIComponent(username)}`, {
+      method: "HEAD", headers: HEADERS_BROWSER, cf: CF_CACHE,
+    });
+    if (r.ok && r.status === 200) {
+      probe.matched = true;
+      probe.username = username;
+    }
+  } catch { /* ignore */ }
+  return probe;
+}
+
+async function probeTwitter(username: string): Promise<ServiceProbe> {
+  const probe: ServiceProbe = {
+    service: "Twitter / X", category: "social", icon: "twitter",
+    profileUrl: `https://x.com/${username}`,
+    matched: false, matchType: "username-guess", confidence: "low",
+  };
+  // Twitter/X requires login to view profiles now; we just check HEAD
+  try {
+    const r = await fetch(`https://x.com/${encodeURIComponent(username)}`, {
+      method: "HEAD", headers: HEADERS_BROWSER, cf: CF_CACHE,
+      redirect: "follow",
+    });
+    if (r.ok) {
+      probe.matched = true;
+      probe.username = username;
+    }
+  } catch { /* ignore */ }
+  return probe;
+}
+
+async function probeFacebook(username: string): Promise<ServiceProbe> {
+  const probe: ServiceProbe = {
+    service: "Facebook", category: "social", icon: "user",
+    profileUrl: `https://www.facebook.com/${username}`,
+    matched: false, matchType: "username-guess", confidence: "low",
+  };
+  // Facebook returns 200 for all profiles (login wall)
+  // The only signal is the meta tag "entity_id" — too unreliable for a public probe.
+  // We mark this as "inconclusive" and rely on the user clicking through.
+  const ok = await exists(`https://www.facebook.com/${encodeURIComponent(username)}`, { headers: HEADERS_BROWSER });
+  if (ok) {
+    probe.matched = true;
+    probe.username = username;
+    probe.extra = { Note: "Facebook returns 200 even for non-existent profiles — verify manually" };
+  }
+  return probe;
+}
+
+async function probeYouTube(username: string): Promise<ServiceProbe> {
+  const probe: ServiceProbe = {
+    service: "YouTube", category: "video", icon: "video",
+    profileUrl: `https://www.youtube.com/@${username}`,
+    matched: false, matchType: "username-guess", confidence: "low",
+  };
+  // YouTube channel lookup via oEmbed (no API key required)
+  try {
+    const r = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/@${encodeURIComponent(username)}&format=json`, {
+      headers: HEADERS_BROWSER, cf: CF_CACHE,
+    });
+    if (r.ok) {
+      const j = (await r.json()) as any;
+      if (j?.author_name) {
+        probe.matched = true;
+        probe.username = username;
+        probe.displayName = j.author_name;
+        // YouTube doesn't return avatar via oEmbed, but we can construct a channel URL
+        probe.extra = { Channel_URL: `https://www.youtube.com/@${username}` };
+      }
+    }
+  } catch { /* ignore */ }
+  return probe;
+}
+
+async function probeSpotify(username: string): Promise<ServiceProbe> {
+  const probe: ServiceProbe = {
+    service: "Spotify", category: "creative", icon: "music",
+    profileUrl: `https://open.spotify.com/user/${username}`,
+    matched: false, matchType: "username-guess", confidence: "low",
+  };
+  // Spotify doesn't have a public user existence API
+  // We do a HEAD probe — Spotify returns 200 for both existing and non-existing
+  // So we don't mark this matched (unless we can verify otherwise)
+  return probe;
+}
+
+async function probeSoundCloud(username: string): Promise<ServiceProbe> {
+  const probe: ServiceProbe = {
+    service: "SoundCloud", category: "creative", icon: "music",
+    profileUrl: `https://soundcloud.com/${username}`,
+    matched: false, matchType: "username-guess", confidence: "low",
+  };
+  // SoundCloud returns 200 for existing users, 404 for non-existent
+  const ok = await exists(`https://soundcloud.com/${encodeURIComponent(username)}`, { headers: HEADERS_BROWSER });
+  if (ok) {
+    probe.matched = true;
+    probe.username = username;
+    // SoundCloud avatar URL pattern: https://i1.sndcdn.com/avatars-<id>-large.jpg (we can't get the ID without API)
+    // We can construct a fallback by scraping the og:image meta
+    try {
+      const r = await fetch(`https://soundcloud.com/${encodeURIComponent(username)}`, {
+        headers: HEADERS_BROWSER, cf: CF_CACHE,
+      });
+      if (r.ok) {
+        const html = await r.text();
+        const m = html.match(/<meta property="og:image" content="([^"]+)"/);
+        if (m) probe.avatarUrl = m[1];
+        const t = html.match(/<meta property="og:title" content="([^"]+)"/);
+        if (t) probe.displayName = t[1].split(" | ")[0];
+      }
+    } catch { /* ignore */ }
+  }
+  return probe;
+}
+
+async function probeTinder(username: string): Promise<ServiceProbe> {
+  // Tinder doesn't have public profiles
+  return {
+    service: "Tinder", category: "social", icon: "user",
+    profileUrl: "https://tinder.com",
+    matched: false, matchType: "username-guess", confidence: "low",
+    extra: { Note: "Tinder doesn't expose public profiles" },
+  };
+}
+
+async function probeXbox(username: string): Promise<ServiceProbe> {
+  // Xbox Gamertag — requires official Xbox API
+  return {
+    service: "Xbox Live", category: "gaming", icon: "gamepad",
+    profileUrl: `https://account.xbox.com/profile?gamertag=${username}`,
+    matched: false, matchType: "username-guess", confidence: "low",
+    extra: { Note: "Xbox profile lookup requires official API key" },
+  };
+}
+
 async function probeGravatarService(gravatar: GravatarResult): Promise<ServiceProbe | null> {
   if (!gravatar.exists) return null;
   return {
-    service: "Gravatar",
-    category: "social",
-    icon: "image",
-    profileUrl: gravatar.profileUrl,
-    matched: true,
-    matchType: "email",
-    confidence: "high",
+    service: "Gravatar", category: "social", icon: "image",
+    profileUrl: gravatar.profileUrl, matched: true,
+    matchType: "email", confidence: "high",
     avatarUrl: gravatar.photoUrl || undefined,
-    displayName: gravatar.displayName,
-    bio: gravatar.about,
+    displayName: gravatar.displayName, bio: gravatar.about,
     extra: gravatar.accounts?.length ? { Linked_accounts: String(gravatar.accounts.length) } : undefined,
   };
 }
@@ -960,28 +1051,38 @@ async function probeGravatarService(gravatar: GravatarResult): Promise<ServicePr
 async function probeGitHubService(github: GitHubResult): Promise<ServiceProbe | null> {
   if (!github.found) return null;
   return {
-    service: "GitHub",
-    category: "developer",
-    icon: "github",
-    profileUrl: github.profileUrl!,
-    matched: true,
-    matchType: "email",
-    confidence: "high",
-    username: github.login!,
-    avatarUrl: github.avatarUrl ?? undefined,
-    displayName: github.name ?? undefined,
-    bio: github.bio ?? undefined,
-    location: github.location ?? undefined,
-    joinedAt: github.createdAt?.slice(0, 10),
-    followerCount: github.followers ?? undefined,
+    service: "GitHub", category: "developer", icon: "github",
+    profileUrl: github.profileUrl!, matched: true,
+    matchType: "email", confidence: "high",
+    username: github.login!, avatarUrl: github.avatarUrl ?? undefined,
+    displayName: github.name ?? undefined, bio: github.bio ?? undefined,
+    location: github.location ?? undefined, joinedAt: github.createdAt?.slice(0, 10),
+    followerCount: github.followers ?? undefined, followingCount: github.following ?? undefined,
     extra: {
       Public_repos: String(github.publicRepos ?? "?"),
+      Public_gists: String(github.publicGists ?? "?"),
       Company: github.company ?? "—",
+      Blog: github.blog ?? "—",
+      Twitter: github.twitterUsername ?? "—",
     },
   };
 }
 
-// ---------- Main lookup ----------
+// ==================== Main lookup ====================
+
+interface IdentityPhoto {
+  service: string;
+  url: string;
+  category: ServiceCategory;
+}
+
+interface TimelineEvent {
+  date: string;
+  service: string;
+  category: ServiceCategory;
+  profileUrl: string;
+  avatarUrl?: string;
+}
 
 interface LookupResult {
   email: string;
@@ -993,8 +1094,11 @@ interface LookupResult {
   github: GitHubResult;
   hibp: HIBPResult;
   services: ServiceProbe[];
+  identityPhotos: IdentityPhoto[];
+  timeline: TimelineEvent[];
   sourcesMatched: number;
   matchedAccounts: number;
+  totalServices: number;
   riskScore: "Low" | "Moderate" | "Elevated" | "High";
   summary: string;
   probesByCategory: Record<string, number>;
@@ -1012,16 +1116,12 @@ async function doLookup(email: string, env: Env): Promise<LookupResult> {
     lookupHIBP(`${validation.localPart}@${validation.domain}`, env.HIBP_API_TOKEN),
   ]);
 
-  // Username-based probes — run all in parallel
   const probes: ServiceProbe[] = [];
-
-  // Email-based probes first (high confidence)
   const grav = await probeGravatarService(gravatar);
   if (grav) probes.push(grav);
   const gh = await probeGitHubService(github);
   if (gh) probes.push(gh);
 
-  // Username-based probes
   const usernameProbes = await Promise.all([
     probeGitLab(username),
     probeBitbucket(username),
@@ -1040,11 +1140,45 @@ async function doLookup(email: string, env: Env): Promise<LookupResult> {
     probeReddit(username),
     probeTumblr(username),
     probeImgur(username, env.IMGUR_CLIENT_ID),
+    probeTikTok(username),
+    probeTwitter(username),
+    probeFacebook(username),
+    probeYouTube(username),
+    probeSpotify(username),
+    probeSoundCloud(username),
+    probeXbox(username),
   ]);
   for (const p of usernameProbes) if (p) probes.push(p);
 
+  // Collect identity photos from all matched services
+  const identityPhotos: IdentityPhoto[] = [];
+  for (const p of probes) {
+    if (p.matched && p.avatarUrl) {
+      identityPhotos.push({
+        service: p.service,
+        url: p.avatarUrl,
+        category: p.category,
+      });
+    }
+  }
+
+  // Build timeline from all matched services with a joinedAt date
+  const timeline: TimelineEvent[] = [];
+  for (const p of probes) {
+    if (p.matched && p.joinedAt) {
+      timeline.push({
+        date: p.joinedAt,
+        service: p.service,
+        category: p.category,
+        profileUrl: p.profileUrl,
+        avatarUrl: p.avatarUrl,
+      });
+    }
+  }
+  timeline.sort((a, b) => a.date.localeCompare(b.date));
+
   const matchedAccounts = probes.filter((p) => p.matched).length;
-  const positiveServices = probes.filter((s) => s.matched);
+  const positiveServices = probes.filter((p) => p.matched);
   const sourcesMatched =
     (gravatar.exists ? 1 : 0) +
     (github.found ? 1 : 0) +
@@ -1080,21 +1214,20 @@ async function doLookup(email: string, env: Env): Promise<LookupResult> {
     email: `${validation.localPart}@${validation.domain}`,
     timestamp: new Date().toISOString(),
     emailHash,
-    validation,
-    mx,
-    gravatar,
-    github,
-    hibp,
+    validation, mx, gravatar, github, hibp,
     services: probes,
+    identityPhotos,
+    timeline,
     sourcesMatched,
     matchedAccounts,
+    totalServices: probes.length,
     riskScore,
     summary,
     probesByCategory,
   };
 }
 
-// ---------- HTTP entry ----------
+// ==================== HTTP entry ====================
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
@@ -1107,10 +1240,13 @@ export default {
     if (url.pathname === "/" || url.pathname === "/health") {
       return new Response(JSON.stringify({
         service: "behindtheemail-osint",
-        version: "2.0.0",
-        services_probed: 20,
+        version: "3.0.0",
+        services_probed: 25,
+        avatar_aggregation: true,
+        timeline: true,
         endpoints: ["/api/lookup?email=foo@bar.com"],
-        categories: ["developer", "social", "creative", "gaming", "forum", "blog", "professional", "messaging"],
+        categories: ["developer", "social", "creative", "gaming", "forum", "blog", "messaging", "video"],
+        optional_secrets: ["HIBP_API_TOKEN", "IMGUR_CLIENT_ID"],
       }), { headers: CORS });
     }
 

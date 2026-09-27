@@ -30,25 +30,37 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — NEVER COMMIT CREDENTIALS
+.env
+.env.*
+!.env.example
 
 # vercel
 .vercel
-
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 local-*
+
+# AI / sandbox config
 .claude
 .z-ai-config
+/skills
+
+# logs
 *.log
 dev.log
 dev.out.log
-test
-prompt
-
 server.log
-# Skills directory
-/skills/.env.r2
+
+# script outputs (screenshots, downloaded artifacts)
+/scripts/*.png
+/scripts/*.jpg
+/scripts/*.jpeg
+/scripts/*.pdf
+/download/
+
+# Prisma SQLite DB
+/db/*.db
+/db/*.db-journal

@@ -64,3 +64,13 @@ server.log
 # Prisma SQLite DB
 /db/*.db
 /db/*.db-journal
+
+# Sandbox / dev scaffold
+/.zscripts/
+/mini-services/
+/examples/
+/skills/
+/tests/
+/Caddyfile
+/prisma/
+/bun.lock

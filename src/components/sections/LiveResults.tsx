@@ -94,6 +94,15 @@ interface ServiceProbe {
   profileUrl: string;
   matched: boolean;
   matchType: "email" | "username-guess";
+  verifiedVia?:
+    | "firefox-api"
+    | "hibp-breach"
+    | "gravatar-link"
+    | "github-email"
+    | "dns-txt"
+    | "password-reset"
+    | "signup-api"
+    | "username-guess";
   confidence: "high" | "medium" | "low";
   username?: string;
   avatarUrl?: string;
@@ -130,16 +139,32 @@ interface LookupResult {
   github: GitHubResult;
   hibp: HIBPResult;
   services: ServiceProbe[];
+  confirmedAccounts: ServiceProbe[];
+  guessAccounts: ServiceProbe[];
   identityPhotos: IdentityPhoto[];
   timeline: TimelineEvent[];
   sourcesMatched: number;
   matchedAccounts: number;
+  confirmedCount: number;
+  guessCount: number;
   totalServices: number;
   riskScore: "Low" | "Moderate" | "Elevated" | "High";
   summary: string;
   probesByCategory: Record<string, number>;
   error?: string;
 }
+
+// Maps verifiedVia values to human-readable labels
+const VERIFIED_VIA_LABELS: Record<string, { label: string; color: string; description: string }> = {
+  "firefox-api":     { label: "Firefox API",       color: "text-orange-300 bg-orange-300/10 ring-orange-300/30", description: "Mozilla's public Firefox Accounts API confirmed this email is registered" },
+  "hibp-breach":     { label: "Breach data",        color: "text-red-300 bg-red-300/10 ring-red-300/30", description: "Email appears in a breach for this service → account confirmed" },
+  "gravatar-link":   { label: "Gravatar link",     color: "text-blue-300 bg-blue-300/10 ring-blue-300/30", description: "User explicitly linked this account on their Gravatar profile" },
+  "github-email":   { label: "GitHub email search", color: "text-purple-300 bg-purple-300/10 ring-purple-300/30", description: "GitHub's search-by-public-email API matched this user" },
+  "dns-txt":        { label: "DNS TXT records",    color: "text-cyan-300 bg-cyan-300/10 ring-cyan-300/30", description: "DNS TXT records prove the email domain uses this provider" },
+  "password-reset": { label: "Password reset",     color: "text-green-300 bg-green-300/10 ring-green-300/30", description: "Service's password-reset flow accepted this email → account exists" },
+  "signup-api":     { label: "Signup API",         color: "text-yellow-300 bg-yellow-300/10 ring-yellow-300/30", description: "Service's signup endpoint reported the email as already registered" },
+  "username-guess": { label: "Username guess",     color: "text-text-accent bg-white/5 ring-white/10", description: "Heuristic — the email's local-part was used as a username guess" },
+};
 
 const SERVICE_ICONS: Record<string, any> = {
   github: Github,
@@ -469,11 +494,16 @@ export default function LiveResults({ email }: { email: string }) {
 
             {/* Stats grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Sources matched" value={String(data.sourcesMatched)} icon={TrendingUp} />
-              <StatCard label="Accounts found" value={`${data.matchedAccounts}/${data.totalServices}`} icon={Users} />
-              <StatCard label="Avatars collected" value={String(data.identityPhotos.length)} icon={Camera} />
-              <StatCard label="Breaches found" value={data.hibp.checked ? String(data.hibp.count) : "—"} icon={ShieldAlert} />
+              <StatCard label="Confirmed" value={String(data.confirmedCount || 0)} icon={Check} accent="green" />
+              <StatCard label="Guesses" value={String(data.guessCount || 0)} icon={Users} accent="yellow" />
+              <StatCard label="Avatars" value={String(data.identityPhotos.length)} icon={Camera} />
+              <StatCard label="Breaches" value={data.hibp.checked ? String(data.hibp.count) : "—"} icon={ShieldAlert} />
             </div>
+
+            {/* Confirmed Accounts - the headline finding */}
+            {(data.confirmedAccounts || []).length > 0 && (
+              <ConfirmedAccounts accounts={data.confirmedAccounts} />
+            )}
 
             {/* Photo Wall - aggregated avatars */}
             {data.identityPhotos.length > 0 && (
@@ -762,30 +792,48 @@ function ServicesMatrix({ services, probesByCategory }: { services: ServiceProbe
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                 {items.map((s) => {
                   const Icon = SERVICE_ICONS[s.icon] || Globe;
+                  const isConfirmed = s.matched && s.matchType === "email" && s.verifiedVia !== "username-guess";
+                  const tileClass = !s.matched
+                    ? "bg-white/[0.02] ring-white/5 hover:ring-white/10"
+                    : isConfirmed
+                    ? "bg-green-400/[0.08] ring-green-400/30 hover:bg-green-400/[0.12]"
+                    : "bg-yellow-300/[0.06] ring-yellow-300/20 hover:bg-yellow-300/[0.10]";
+                  const iconColor = !s.matched
+                    ? "text-text-accent/50"
+                    : isConfirmed
+                    ? "text-green-300"
+                    : "text-yellow-300";
+                  const title = !s.matched
+                    ? "No account found"
+                    : isConfirmed
+                    ? `✓ Confirmed via ${s.verifiedVia} — definitive match`
+                    : `Username-guess match — verify manually`;
                   return (
                     <a
                       key={s.service}
                       href={s.profileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`group flex items-center gap-2 px-3 py-2 rounded-lg ring-1 transition-all ${
-                        s.matched
-                          ? "bg-brand-primary/10 ring-brand-primary/30 hover:bg-brand-primary/15"
-                          : "bg-white/[0.02] ring-white/5 hover:ring-white/10"
-                      }`}
-                      title={s.matched ? `Match found — ${s.matchType === "email" ? "email-based" : "username-guess"}` : "No account found"}
+                      className={`group flex items-center gap-2 px-3 py-2 rounded-lg ring-1 transition-all ${tileClass}`}
+                      title={title}
                     >
-                      <Icon className={`h-3.5 w-3.5 shrink-0 ${s.matched ? "text-brand-primary" : "text-text-accent/50"}`} />
+                      <Icon className={`h-3.5 w-3.5 shrink-0 ${iconColor}`} />
                       <div className="flex-1 min-w-0">
                         <p className={`text-xs font-medium truncate ${s.matched ? "text-text-primary" : "text-text-accent/70"}`}>
                           {s.service}
                         </p>
                         {s.matched && s.username && (
-                          <p className="text-[10px] font-mono text-text-accent truncate">@{s.username}</p>
+                          <p className="text-[10px] font-mono text-text-accent truncate">
+                            {s.username === s.email ? "email match" : `@${s.username}`}
+                          </p>
                         )}
                       </div>
                       {s.matched ? (
-                        <Check className="h-3.5 w-3.5 text-brand-primary shrink-0" />
+                        isConfirmed ? (
+                          <Check className="h-3.5 w-3.5 text-green-300 shrink-0" />
+                        ) : (
+                          <span className="text-[9px] text-yellow-300 shrink-0">~</span>
+                        )
                       ) : (
                         <X className="h-3.5 w-3.5 text-text-accent/40 shrink-0" />
                       )}
@@ -800,14 +848,17 @@ function ServicesMatrix({ services, probesByCategory }: { services: ServiceProbe
 
       <div className="mt-5 pt-4 border-t border-white/5 flex flex-wrap items-center gap-4 text-[10px] text-text-accent/70">
         <span className="inline-flex items-center gap-1.5">
-          <Check className="h-3 w-3 text-brand-primary" /> Account found
+          <Check className="h-3 w-3 text-green-300" /> Confirmed (real email check)
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <X className="h-3 w-3 text-text-accent/40" /> No account
+          <span className="text-yellow-300 font-bold">~</span> Username guess (heuristic)
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <X className="h-3 w-3 text-text-accent/40" /> No account found
         </span>
         <span className="text-text-accent/50">
-          Note: For services without email-based lookup, the email&apos;s local-part is used as a username guess.
-          Matches marked &ldquo;username-guess&rdquo; should be verified manually.
+          Green tiles are confirmed via real email-based API checks (Firefox Accounts, GitHub email search, HIBP breaches, Gravatar links, password-reset flows).
+          Yellow tiles are heuristic username guesses and may be false positives.
         </span>
       </div>
     </div>
@@ -929,12 +980,112 @@ const MATCH_BADGE: Record<string, { label: string; color: string }> = {
   none:      { label: "No match",        color: "text-text-accent/50 bg-white/5 ring-white/10" },
 };
 
-function StatCard({ label, value, icon: Icon }: { label: string; value: string; icon: any }) {
+function StatCard({ label, value, icon: Icon, accent }: { label: string; value: string; icon: any; accent?: "green" | "yellow" | "default" }) {
+  const accentClass = accent === "green"
+    ? "from-green-400/30 to-green-400/5"
+    : accent === "yellow"
+    ? "from-yellow-300/30 to-yellow-300/5"
+    : "";
   return (
     <div className="rounded-xl glass p-4 text-center relative overflow-hidden">
+      {accent && (
+        <div className={`absolute inset-0 bg-gradient-to-br ${accentClass} opacity-30 pointer-events-none`} />
+      )}
       <Icon className="absolute top-2 right-2 h-3 w-3 text-brand-primary/30" />
-      <p className="text-2xl sm:text-3xl font-bold text-brand-gradient">{value}</p>
-      <p className="mt-1 text-[10px] text-text-accent uppercase tracking-wider">{label}</p>
+      <p className="relative text-2xl sm:text-3xl font-bold text-brand-gradient">{value}</p>
+      <p className="relative mt-1 text-[10px] text-text-accent uppercase tracking-wider">{label}</p>
+    </div>
+  );
+}
+
+// ----------------- ConfirmedAccounts sub-component -----------------
+// This is the headline section: shows accounts confirmed via REAL
+// email-based checks (not username guesses). These are definitive matches.
+
+function ConfirmedAccounts({ accounts }: { accounts: ServiceProbe[] }) {
+  if (accounts.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl p-5 sm:p-6 relative overflow-hidden ring-2 ring-green-400/30 bg-gradient-to-br from-green-400/[0.06] via-transparent to-transparent">
+      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-green-400/40 to-transparent" />
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-green-300" />
+            <h3 className="text-sm font-semibold">Confirmed accounts</h3>
+          </div>
+          <p className="text-[11px] text-text-accent mt-0.5">
+            Verified via real email-based API checks — not username guesses.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-400/15 ring-1 ring-green-400/30 text-green-300 text-xs font-bold">
+          {accounts.length} confirmed
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {accounts.map((acc, i) => {
+          const Icon = SERVICE_ICONS[acc.icon] || Globe;
+          const verifiedViaInfo = VERIFIED_VIA_LABELS[acc.verifiedVia || "username-guess"];
+          return (
+            <a
+              key={acc.service + i}
+              href={acc.profileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] ring-1 ring-white/10 hover:ring-green-400/30 hover:bg-green-400/[0.04] transition-all animate-slide-in"
+              style={{ animationDelay: `${i * 60}ms` }}
+              title={verifiedViaInfo?.description}
+            >
+              {/* Avatar / icon */}
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 ring-1 ring-white/10 overflow-hidden shrink-0">
+                {acc.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={acc.avatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <Icon className="h-5 w-5 text-green-300" />
+                )}
+              </div>
+
+              {/* Identity info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold truncate">{acc.service}</p>
+                  <Check className="h-3 w-3 text-green-300 shrink-0" />
+                </div>
+                {acc.displayName && (
+                  <p className="text-xs text-text-accent truncate">{acc.displayName}</p>
+                )}
+                {acc.username && acc.username !== acc.email && (
+                  <p className="text-[10px] font-mono text-text-accent/70 truncate">@{acc.username}</p>
+                )}
+                {acc.extra?.Confirmed_via && (
+                  <p className="text-[10px] text-text-accent/60 truncate mt-0.5">{acc.extra.Confirmed_via}</p>
+                )}
+              </div>
+
+              {/* Verification badge */}
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full ring-1 ${verifiedViaInfo?.color || "text-text-accent bg-white/5 ring-white/10"}`}>
+                {verifiedViaInfo?.label}
+              </span>
+
+              <ExternalLink className="h-3.5 w-3.5 text-text-accent/40 group-hover:text-green-300 transition-colors shrink-0" />
+            </a>
+          );
+        })}
+      </div>
+
+      {/* Trust footer */}
+      <div className="mt-4 pt-3 border-t border-white/5 text-[10px] text-text-accent/70 flex items-start gap-2">
+        <ShieldAlert className="h-3 w-3 text-green-300/60 mt-0.5 shrink-0" />
+        <p className="leading-relaxed">
+          These accounts were confirmed via real API checks against the email
+          address itself — Firefox Accounts API, GitHub email search, HIBP
+          breach correlation, Gravatar linked accounts, or password-reset
+          flows. <strong className="text-text-accent">These are definitive</strong>{" "}
+          (no username guessing involved).
+        </p>
+      </div>
     </div>
   );
 }

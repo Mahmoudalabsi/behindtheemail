@@ -2,35 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  Briefcase,
-  MapPin,
-  Github,
-  Twitter,
-  ShieldAlert,
-  Camera,
-  Check,
-  X,
-  Loader2,
-  Download,
-  ExternalLink,
-  Lock,
-  Mail,
-  Globe,
-  Server,
-  AlertTriangle,
-  Code,
-  MessageSquare,
-  Image as ImageIcon,
-  Gamepad2,
-  Send,
-  User,
-  Music,
-  Video,
-  Calendar,
-  TrendingUp,
-  Award,
-  Users,
-  FileText,
+  Briefcase, GraduationCap, MapPin, Github, Twitter, ShieldAlert,
+  Camera, Check, X, Loader2, Download, ExternalLink, Lock, Mail,
+  Globe, Server, AlertTriangle, Code, MessageSquare, Image as ImageIcon,
+  Gamepad2, Send, User, Music, Video, Calendar, Award, Users, FileText,
+  Building2, Star, Link2,
 } from "lucide-react";
 
 // ----------------- Types -----------------
@@ -38,190 +14,77 @@ import {
 type ServiceCategory = "developer" | "social" | "creative" | "gaming" | "forum" | "blog" | "professional" | "messaging" | "video";
 
 interface EmailValidation {
-  valid: boolean;
-  localPart: string;
-  domain: string;
-  isServiceEmail: boolean;
-  serviceType: string | null;
+  valid: boolean; localPart: string; domain: string;
+  isServiceEmail: boolean; serviceType: string | null;
 }
 interface MxResult { hasMx: boolean; mxRecords: string[]; provider: string | null; }
 interface GravatarResult {
-  exists: boolean;
-  hash: string;
-  photoUrl: string | null;
-  profileUrl: string;
-  displayName?: string;
-  about?: string;
+  exists: boolean; hash: string; photoUrl: string | null; profileUrl: string;
+  displayName?: string; about?: string;
   accounts?: Array<{ shortname: string; url: string; display: string }>;
   urls?: Array<{ value: string; title: string }>;
 }
 interface GitHubResult {
-  found: boolean;
-  login: string | null;
-  profileUrl: string | null;
-  avatarUrl: string | null;
-  bio: string | null;
-  name: string | null;
-  location: string | null;
-  company: string | null;
-  blog: string | null;
-  twitterUsername: string | null;
-  publicRepos: number | null;
-  publicGists: number | null;
-  followers: number | null;
-  following: number | null;
-  createdAt: string | null;
-  updatedAt: string | null;
+  found: boolean; login: string | null; profileUrl: string | null; avatarUrl: string | null;
+  bio: string | null; name: string | null; location: string | null; company: string | null;
+  blog: string | null; twitterUsername: string | null;
+  publicRepos: number | null; publicGists: number | null;
+  followers: number | null; following: number | null;
+  createdAt: string | null; updatedAt: string | null;
 }
 interface BreachInfo {
-  name: string;
-  domain: string;
-  breachDate: string;
-  dataClasses: string[];
-  description: string;
-  pwnCount: number;
+  name: string; domain: string; breachDate: string;
+  dataClasses: string[]; description: string; pwnCount: number;
 }
 interface HIBPResult {
-  checked: boolean;
-  count: number;
-  breaches: BreachInfo[];
-  error?: string;
+  checked: boolean; count: number; breaches: BreachInfo[]; error?: string;
 }
 interface ServiceProbe {
-  service: string;
-  category: ServiceCategory;
-  icon: string;
-  profileUrl: string;
-  matched: boolean;
-  matchType: "email" | "username-guess";
-  verifiedVia?:
-    | "firefox-api"
-    | "hibp-breach"
-    | "gravatar-link"
-    | "github-email"
-    | "dns-txt"
-    | "password-reset"
-    | "signup-api"
-    | "username-guess";
+  service: string; category: ServiceCategory; icon: string; profileUrl: string;
+  matched: boolean; matchType: "email" | "username-guess";
+  verifiedVia?: "firefox-api" | "hibp-breach" | "gravatar-link" | "github-email" | "dns-txt" | "password-reset" | "signup-api" | "username-guess";
   confidence: "high" | "medium" | "low";
-  username?: string;
-  avatarUrl?: string;
-  bannerUrl?: string;
-  displayName?: string;
-  bio?: string;
-  location?: string;
-  joinedAt?: string;
-  followerCount?: number;
-  followingCount?: number;
-  postCount?: number;
-  verified?: boolean;
-  extra?: Record<string, string>;
+  username?: string; avatarUrl?: string; bannerUrl?: string;
+  displayName?: string; bio?: string; location?: string; joinedAt?: string;
+  followerCount?: number; followingCount?: number; postCount?: number;
+  verified?: boolean; extra?: Record<string, string>;
 }
-interface IdentityPhoto {
-  service: string;
-  url: string;
-  category: ServiceCategory;
-}
+interface IdentityPhoto { service: string; url: string; category: ServiceCategory; }
 interface TimelineEvent {
-  date: string;
-  service: string;
-  category: ServiceCategory;
-  profileUrl: string;
-  avatarUrl?: string;
+  date: string; service: string; category: ServiceCategory;
+  profileUrl: string; avatarUrl?: string;
 }
 interface LookupResult {
-  email: string;
-  timestamp: string;
-  emailHash: string;
-  validation: EmailValidation;
-  mx: MxResult;
-  gravatar: GravatarResult;
-  github: GitHubResult;
-  hibp: HIBPResult;
-  services: ServiceProbe[];
-  confirmedAccounts: ServiceProbe[];
-  guessAccounts: ServiceProbe[];
-  identityPhotos: IdentityPhoto[];
-  timeline: TimelineEvent[];
-  sourcesMatched: number;
-  matchedAccounts: number;
-  confirmedCount: number;
-  guessCount: number;
-  totalServices: number;
+  email: string; timestamp: string; emailHash: string;
+  validation: EmailValidation; mx: MxResult; gravatar: GravatarResult;
+  github: GitHubResult; hibp: HIBPResult;
+  services: ServiceProbe[]; confirmedAccounts: ServiceProbe[]; guessAccounts: ServiceProbe[];
+  identityPhotos: IdentityPhoto[]; timeline: TimelineEvent[];
+  sourcesMatched: number; matchedAccounts: number;
+  confirmedCount: number; guessCount: number; totalServices: number;
   riskScore: "Low" | "Moderate" | "Elevated" | "High";
-  summary: string;
-  probesByCategory: Record<string, number>;
+  summary: string; probesByCategory: Record<string, number>;
   error?: string;
 }
 
-// Maps verifiedVia values to human-readable labels
-const VERIFIED_VIA_LABELS: Record<string, { label: string; color: string; description: string }> = {
-  "firefox-api":     { label: "Firefox API",       color: "text-orange-300 bg-orange-300/10 ring-orange-300/30", description: "Mozilla's public Firefox Accounts API confirmed this email is registered" },
-  "hibp-breach":     { label: "Breach data",        color: "text-red-300 bg-red-300/10 ring-red-300/30", description: "Email appears in a breach for this service → account confirmed" },
-  "gravatar-link":   { label: "Gravatar link",     color: "text-blue-300 bg-blue-300/10 ring-blue-300/30", description: "User explicitly linked this account on their Gravatar profile" },
-  "github-email":   { label: "GitHub email search", color: "text-purple-300 bg-purple-300/10 ring-purple-300/30", description: "GitHub's search-by-public-email API matched this user" },
-  "dns-txt":        { label: "DNS TXT records",    color: "text-cyan-300 bg-cyan-300/10 ring-cyan-300/30", description: "DNS TXT records prove the email domain uses this provider" },
-  "password-reset": { label: "Password reset",     color: "text-green-300 bg-green-300/10 ring-green-300/30", description: "Service's password-reset flow accepted this email → account exists" },
-  "signup-api":     { label: "Signup API",         color: "text-yellow-300 bg-yellow-300/10 ring-yellow-300/30", description: "Service's signup endpoint reported the email as already registered" },
-  "username-guess": { label: "Username guess",     color: "text-text-accent bg-white/5 ring-white/10", description: "Heuristic — the email's local-part was used as a username guess" },
-};
-
 const SERVICE_ICONS: Record<string, any> = {
-  github: Github,
-  gitlab: Code,
-  bitbucket: Code,
-  google: Globe,
-  microsoft: Briefcase,
-  reddit: MessageSquare,
-  tumblr: ImageIcon,
-  code: Code,
-  news: FileText,
-  image: ImageIcon,
-  user: User,
-  shield: ShieldAlert,
-  send: Send,
-  gamepad: Gamepad2,
-  video: Video,
-  message: MessageSquare,
-  music: Music,
-  twitter: Twitter,
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  developer: "Developer",
-  social: "Social",
-  creative: "Creative",
-  gaming: "Gaming",
-  forum: "Forums",
-  blog: "Blog",
-  professional: "Professional",
-  messaging: "Messaging",
-  video: "Video",
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  developer: "from-blue-400/30 to-blue-400/5 text-blue-300 ring-blue-400/30",
-  social: "from-pink-400/30 to-pink-400/5 text-pink-300 ring-pink-400/30",
-  creative: "from-purple-400/30 to-purple-400/5 text-purple-300 ring-purple-400/30",
-  gaming: "from-green-400/30 to-green-400/5 text-green-300 ring-green-400/30",
-  forum: "from-orange-400/30 to-orange-400/5 text-orange-300 ring-orange-400/30",
-  blog: "from-yellow-400/30 to-yellow-400/5 text-yellow-300 ring-yellow-400/30",
-  professional: "from-cyan-400/30 to-cyan-400/5 text-cyan-300 ring-cyan-400/30",
-  messaging: "from-indigo-400/30 to-indigo-400/5 text-indigo-300 ring-indigo-400/30",
-  video: "from-red-400/30 to-red-400/5 text-red-300 ring-red-400/30",
+  github: Github, gitlab: Code, bitbucket: Code, google: Globe, microsoft: Briefcase,
+  reddit: MessageSquare, tumblr: ImageIcon, code: Code, news: FileText, image: ImageIcon,
+  user: User, shield: ShieldAlert, send: Send, gamepad: Gamepad2, video: Video,
+  message: MessageSquare, music: Music, twitter: Twitter, briefcase: Briefcase,
 };
 
 const WORKER_URL = "https://behindtheemail-osint.mahmoudalabsi0599.workers.dev";
 
 const SCAN_STEPS = [
-  { label: "Validating email format & domain",          icon: Mail },
-  { label: "Resolving MX records via Cloudflare DNS",  icon: Server },
-  { label: "Querying Gravatar profile + avatar",        icon: Camera },
-  { label: "Searching GitHub public emails",            icon: Github },
-  { label: "Scanning HaveIBeenPwned breach corpus",    icon: ShieldAlert },
-  { label: "Probing 25+ services for account matches",  icon: Globe },
-  { label: "Aggregating avatars & building timeline",   icon: Award },
-  { label: "Cross-referencing & compiling report",      icon: Check },
+  { label: "Validating email format & domain", icon: Mail },
+  { label: "Resolving MX records via Cloudflare DNS", icon: Server },
+  { label: "Querying Gravatar profile + avatar", icon: Camera },
+  { label: "Searching GitHub public emails", icon: Github },
+  { label: "Scanning HaveIBeenPwned breach corpus", icon: ShieldAlert },
+  { label: "Probing 25+ services for account matches", icon: Globe },
+  { label: "Aggregating avatars & building timeline", icon: Award },
+  { label: "Cross-referencing & compiling report", icon: Check },
 ];
 
 export default function LiveResults({ email }: { email: string }) {
@@ -233,194 +96,64 @@ export default function LiveResults({ email }: { email: string }) {
 
   useEffect(() => {
     cancelledRef.current = false;
-    setLoading(true);
-    setData(null);
-    setError(null);
-    setScanStep(0);
-
+    setLoading(true); setData(null); setError(null); setScanStep(0);
     const run = async () => {
       const stepTimers: ReturnType<typeof setTimeout>[] = [];
       SCAN_STEPS.forEach((_, i) => {
-        const t = setTimeout(() => {
-          if (!cancelledRef.current) setScanStep(i);
-        }, 300 * i + (i === 4 ? 200 : 0));
+        const t = setTimeout(() => { if (!cancelledRef.current) setScanStep(i); }, 300 * i + (i === 4 ? 200 : 0));
         stepTimers.push(t);
       });
-
       try {
         const r = await fetch(`${WORKER_URL}/api/lookup?email=${encodeURIComponent(email)}`);
         const json = (await r.json()) as LookupResult & { error?: string };
         if (!r.ok) throw new Error(json.error || `Lookup failed (${r.status})`);
-
         for (const t of stepTimers) clearTimeout(t);
         if (cancelledRef.current) return;
         setScanStep(SCAN_STEPS.length - 1);
-
         await new Promise((r) => setTimeout(r, 300));
         if (cancelledRef.current) return;
-        setData(json);
-        setLoading(false);
+        setData(json); setLoading(false);
       } catch (e: any) {
         for (const t of stepTimers) clearTimeout(t);
         if (cancelledRef.current) return;
-        setError(e?.message || "Lookup failed");
-        setLoading(false);
+        setError(e?.message || "Lookup failed"); setLoading(false);
       }
     };
-
     run();
     return () => { cancelledRef.current = true; };
   }, [email]);
 
-  // ----------------- Cards derived from real data -----------------
-
-  type Card = {
-    title: string;
-    source: string;
-    icon: any;
-    matchStrength: "strong" | "moderate" | "weak" | "none";
-    fields: { label: string; value: string }[];
-    photoUrl?: string;
-    bannerUrl?: string;
-    followerCount?: number;
-    postCount?: number;
-    verified?: boolean;
-  };
-
-  function buildCards(d: LookupResult): Card[] {
-    const cards: Card[] = [];
-
-    if (d.mx.hasMx) {
-      cards.push({
-        title: "Mail Provider", source: `dns-query / ${d.validation.domain}`,
-        icon: Server, matchStrength: "strong",
-        fields: [
-          { label: "Provider", value: d.mx.provider || d.mx.mxRecords[0] || "Unknown" },
-          { label: "MX count", value: String(d.mx.mxRecords.length) },
-          { label: "Primary MX", value: d.mx.mxRecords[0] || "—" },
-          { label: "Domain", value: d.validation.domain },
-        ],
-      });
-    }
-
-    if (d.gravatar.exists) {
-      cards.push({
-        title: "Gravatar Profile", source: "gravatar.com",
-        icon: Camera, matchStrength: "strong", photoUrl: d.gravatar.photoUrl || undefined,
-        fields: [
-          { label: "Display name", value: d.gravatar.displayName || "—" },
-          { label: "About", value: d.gravatar.about || "—" },
-          { label: "Hash", value: d.gravatar.hash },
-          ...(d.gravatar.accounts || []).slice(0, 3).map((a) => ({
-            label: a.shortname, value: a.display,
-          })),
-        ],
-      });
-    }
-
-    if (d.github.found) {
-      cards.push({
-        title: "GitHub Activity", source: `github.com/${d.github.login}`,
-        icon: Github, matchStrength: "strong", photoUrl: d.github.avatarUrl || undefined,
-        followerCount: d.github.followers ?? undefined,
-        postCount: d.github.publicRepos ?? undefined,
-        fields: [
-          { label: "Username", value: d.github.login || "—" },
-          { label: "Name", value: d.github.name || "—" },
-          { label: "Bio", value: d.github.bio || "—" },
-          { label: "Company", value: d.github.company || "—" },
-          { label: "Location", value: d.github.location || "—" },
-          { label: "Blog", value: d.github.blog || "—" },
-          { label: "Twitter", value: d.github.twitterUsername ? `@${d.github.twitterUsername}` : "—" },
-          { label: "Public repos", value: String(d.github.publicRepos ?? "—") },
-          { label: "Public gists", value: String(d.github.publicGists ?? "—") },
-          { label: "Followers", value: d.github.followers != null ? d.github.followers.toLocaleString() : "—" },
-          { label: "Following", value: d.github.following != null ? d.github.following.toLocaleString() : "—" },
-          { label: "Joined", value: d.github.createdAt ? d.github.createdAt.slice(0, 10) : "—" },
-        ],
-      });
-    }
-
-    for (const s of d.services) {
-      if (!s.matched) continue;
-      if (s.service === "Gravatar" || s.service === "GitHub") continue;
-      cards.push({
-        title: s.service, source: s.profileUrl,
-        icon: SERVICE_ICONS[s.icon] || Globe,
-        matchStrength: s.confidence === "high" ? "strong" : s.confidence === "medium" ? "moderate" : "weak",
-        photoUrl: s.avatarUrl, bannerUrl: s.bannerUrl,
-        followerCount: s.followerCount, postCount: s.postCount,
-        verified: s.verified,
-        fields: [
-          { label: "Username", value: s.username || "—" },
-          ...(s.displayName ? [{ label: "Display name", value: s.displayName }] : []),
-          ...(s.bio ? [{ label: "Bio", value: s.bio }] : []),
-          ...(s.location ? [{ label: "Location", value: s.location }] : []),
-          ...(s.joinedAt ? [{ label: "Joined", value: s.joinedAt }] : []),
-          ...(s.followerCount != null ? [{ label: "Followers", value: s.followerCount.toLocaleString() }] : []),
-          ...(s.postCount != null ? [{ label: "Posts", value: s.postCount.toLocaleString() }] : []),
-          ...(s.extra ? Object.entries(s.extra).map(([k, v]) => ({
-            label: k.replace(/_/g, " "), value: v,
-          })) : []),
-          { label: "Match type", value: s.matchType === "email" ? "Email-based (definitive)" : "Username-guess (heuristic)" },
-        ],
-      });
-    }
-
-    const hibp = d.hibp;
-    cards.push({
-      title: "Breach Exposure",
-      source: hibp.checked ? "haveibeenpwned.com" : "haveibeenpwned.com (not configured)",
-      icon: ShieldAlert,
-      matchStrength: hibp.count > 0 ? "moderate" : "weak",
-      fields: hibp.checked
-        ? hibp.breaches.length > 0
-          ? hibp.breaches.slice(0, 5).map((b) => ({
-              label: b.name,
-              value: `${b.breachDate} · ${b.dataClasses.join(", ").slice(0, 60)}`,
-            }))
-          : [{ label: "Status", value: "✓ No breaches found" }]
-        : [{ label: "Status", value: "API key not configured" }],
-    });
-
-    return cards;
-  }
-
-  // ----------------- Render -----------------
+  // -------------------- Render --------------------
 
   return (
-    <section id="search-results" className="py-16 sm:py-20 relative overflow-hidden scroll-mt-20">
+    <section id="search-results" className="py-12 sm:py-16 relative overflow-hidden scroll-mt-20">
       <div className="absolute inset-0 bg-gradient-to-b from-brand-primary/[0.04] via-transparent to-transparent pointer-events-none" />
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
 
-        {/* Header */}
-        <div className="rounded-2xl glass-strong p-5 sm:p-6 mb-6">
+        {/* Report header */}
+        <div className="rounded-2xl glass-strong p-5 sm:p-6 mb-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-brand-primary/15 ring-1 ring-brand-primary/30">
                 {error ? <X className="h-4 w-4 text-red-400" /> :
                  loading ? <Loader2 className="h-4 w-4 text-brand-primary animate-spin" /> :
                  <Check className="h-4 w-4 text-brand-primary" />}
               </span>
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-wider text-text-accent/80">
-                  {error ? "Lookup failed" : loading ? "Scanning live sources" : "Search complete · live data"}
+                  {error ? "Lookup failed" : loading ? "Scanning live sources" : "OSINT Report · Live data"}
                 </p>
                 <p className="text-sm font-mono break-all">{email}</p>
               </div>
             </div>
             {data && !error && (
               <div className="flex items-center gap-2">
-                <a
-                  href={`${WORKER_URL}/api/lookup?email=${encodeURIComponent(email)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md glass hover:border-brand-primary/40 transition-colors"
-                >
+                <a href={`${WORKER_URL}/api/lookup?email=${encodeURIComponent(email)}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md glass hover:border-brand-primary/40 transition-colors">
                   <ExternalLink className="h-3.5 w-3.5" /> Raw JSON
                 </a>
                 <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md btn-brand">
-                  <Download className="h-3.5 w-3.5" /> PDF report
+                  <Download className="h-3.5 w-3.5" /> Export
                 </button>
               </div>
             )}
@@ -432,40 +165,28 @@ export default function LiveResults({ email }: { email: string }) {
           <div className="rounded-2xl glass p-6 sm:p-8">
             <div className="space-y-2.5">
               {SCAN_STEPS.map((s, i) => {
-                const isCurrent = i === scanStep;
-                const isPast = i < scanStep;
+                const isCurrent = i === scanStep; const isPast = i < scanStep;
                 const Icon = s.icon;
                 return (
-                  <div
-                    key={s.label}
-                    className={`flex items-center gap-3 transition-opacity ${isCurrent || isPast ? "opacity-100" : "opacity-30"}`}
-                  >
+                  <div key={s.label} className={`flex items-center gap-3 transition-opacity ${isCurrent || isPast ? "opacity-100" : "opacity-30"}`}>
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-mono">
-                      {isPast ? (
-                        <Check className="h-3.5 w-3.5 text-brand-primary" />
-                      ) : isCurrent ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-primary" />
-                      ) : (
-                        <span className="text-text-accent/60">{String(i + 1).padStart(2, "0")}</span>
-                      )}
+                      {isPast ? <Check className="h-3.5 w-3.5 text-brand-primary" /> :
+                       isCurrent ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-primary" /> :
+                       <span className="text-text-accent/60">{String(i + 1).padStart(2, "0")}</span>}
                     </span>
                     <Icon className={`h-3.5 w-3.5 ${isCurrent ? "text-brand-primary" : isPast ? "text-brand-primary/60" : "text-text-accent/40"}`} />
-                    <span className={`text-sm ${isCurrent ? "text-text-primary font-medium" : "text-text-accent"}`}>
-                      {s.label}
-                    </span>
+                    <span className={`text-sm ${isCurrent ? "text-text-primary font-medium" : "text-text-accent"}`}>{s.label}</span>
                     {isPast && <span className="ml-auto text-[10px] text-brand-primary font-mono">done</span>}
                   </div>
                 );
               })}
             </div>
             <div className="mt-6 h-1 rounded-full bg-white/5 overflow-hidden">
-              <div
-                className="h-full bg-brand-primary transition-all duration-500"
-                style={{ width: `${((scanStep + 1) / SCAN_STEPS.length) * 100}%` }}
-              />
+              <div className="h-full bg-brand-primary transition-all duration-500"
+                style={{ width: `${((scanStep + 1) / SCAN_STEPS.length) * 100}%` }} />
             </div>
             <p className="mt-3 text-[11px] text-text-accent/70 font-mono">
-              step {scanStep + 1}/{SCAN_STEPS.length} · progress {Math.round(((scanStep + 1) / SCAN_STEPS.length) * 100)}% · live lookup in progress
+              step {scanStep + 1}/{SCAN_STEPS.length} · progress {Math.round(((scanStep + 1) / SCAN_STEPS.length) * 100)}%
             </p>
           </div>
         )}
@@ -476,36 +197,32 @@ export default function LiveResults({ email }: { email: string }) {
             <AlertTriangle className="h-8 w-8 text-yellow-300 mx-auto mb-3" />
             <p className="text-sm font-semibold mb-1">Lookup failed</p>
             <p className="text-xs text-text-accent mb-5 max-w-md mx-auto">{error}</p>
-            <button
-              onClick={() => document.getElementById("top")?.scrollIntoView({ behavior: "smooth" })}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs rounded-md glass hover:border-brand-primary/40 transition-colors"
-            >
+            <button onClick={() => document.getElementById("top")?.scrollIntoView({ behavior: "smooth" })}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs rounded-md glass hover:border-brand-primary/40 transition-colors">
               <X className="h-3.5 w-3.5" /> Try another email
             </button>
           </div>
         )}
 
-        {/* Results */}
+        {/* REPORT - matches original site's vertical source-card layout */}
         {data && !loading && !error && (
-          <div className="space-y-5 animate-slide-in">
+          <div className="space-y-4 animate-slide-in">
 
-            {/* Identity banner with hero photo */}
+            {/* Identity banner */}
             <IdentityBanner data={data} />
 
-            {/* Stats grid */}
+            {/* Top stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Confirmed" value={String(data.confirmedCount || 0)} icon={Check} accent="green" />
-              <StatCard label="Guesses" value={String(data.guessCount || 0)} icon={Users} accent="yellow" />
+              <StatCard label="Confirmed" value={String(data.confirmedCount || 0)} accent="green" icon={Check} />
+              <StatCard label="Guesses" value={String(data.guessCount || 0)} accent="yellow" icon={Users} />
               <StatCard label="Avatars" value={String(data.identityPhotos.length)} icon={Camera} />
-              <StatCard label="Breaches" value={data.hibp.checked ? String(data.hibp.count) : "—"} icon={ShieldAlert} />
+              <StatCard label="Breaches" value={data.hibp.checked ? String(data.hibp.count) : "—"} accent={data.hibp.count > 0 ? "red" : "default"} icon={ShieldAlert} />
             </div>
 
-            {/* Confirmed Accounts - the headline finding */}
-            {(data.confirmedAccounts || []).length > 0 && (
-              <ConfirmedAccounts accounts={data.confirmedAccounts} />
-            )}
+            {/* Source cards — vertical list like the original */}
+            <SourceCards data={data} />
 
-            {/* Photo Wall - aggregated avatars */}
+            {/* Photo Wall */}
             {data.identityPhotos.length > 0 && (
               <PhotoWall photos={data.identityPhotos} />
             )}
@@ -515,60 +232,43 @@ export default function LiveResults({ email }: { email: string }) {
               <Timeline timeline={data.timeline} />
             )}
 
-            {/* Services matrix */}
+            {/* Registered Accounts (compact list at bottom — matches original) */}
+            <RegisteredAccounts services={data.services} />
+
+            {/* Services probed matrix */}
             <ServicesMatrix services={data.services} probesByCategory={data.probesByCategory} />
 
-            {/* Category breakdown bar */}
-            <CategoryBreakdown services={data.services} />
-
-            {/* Detailed cards */}
-            {buildCards(data).length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold mb-3 text-text-accent flex items-center gap-2">
-                  <FileText className="h-4 w-4" /> Detailed profiles
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {buildCards(data).map((card, idx) => (
-                    <DetailedCard key={card.title + idx} card={card} idx={idx} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* HIBP error notice */}
+            {/* HIBP notice */}
             {data.hibp.error && (
               <div className="rounded-xl glass p-4 flex items-start gap-3">
                 <AlertTriangle className="h-4 w-4 text-yellow-300 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-xs font-semibold mb-0.5">Breach data unavailable</p>
                   <p className="text-[11px] text-text-accent leading-relaxed">
-                    {data.hibp.error}. To enable real breach lookups, set the{" "}
-                    <code className="font-mono text-brand-primary">HIBP_API_TOKEN</code> secret on the Worker
-                    via <code className="font-mono text-brand-primary">wrangler secret put HIBP_API_TOKEN</code>.
+                    {data.hibp.error}. Set{" "}
+                    <code className="font-mono text-brand-primary">HIBP_API_TOKEN</code> via{" "}
+                    <code className="font-mono text-brand-primary">wrangler secret put HIBP_API_TOKEN</code>.
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Privacy notice */}
+            {/* Privacy footer */}
             <div className="rounded-xl glass p-4 flex items-start gap-3">
               <Lock className="h-4 w-4 text-text-accent/60 shrink-0 mt-0.5" />
               <p className="text-[11px] text-text-accent/80 leading-relaxed">
-                <span className="text-text-accent">Live lookup:</span> This scan was performed in real time
-                against public APIs (Cloudflare DNS, Gravatar, GitHub, HaveIBeenPwned, Reddit, Tumblr,
-                GitLab, Bitbucket, HackerNews, Keybase, Medium, Pastebin, Dev.to, About.me, Pinterest,
-                Instagram, Telegram, Steam, Roblox, Twitch, TikTok, Twitter/X, Facebook, YouTube, SoundCloud).
-                No data is stored. The Worker is open-source at{" "}
-                <code className="font-mono text-brand-primary">worker/src/index.ts</code>.
+                <span className="text-text-accent">Live lookup:</span> Scanned in real time against
+                Cloudflare DNS, Gravatar, GitHub, HaveIBeenPwned, Firefox Accounts API, Twitter,
+                Spotify, Duolingo, Pinterest, Tumblr, Reddit, GitLab, Bitbucket, HackerNews, Keybase,
+                Steam, Roblox, Twitch, TikTok, YouTube, SoundCloud, Imgur. No data stored.
+                Open-source at <code className="font-mono text-brand-primary">worker/src/index.ts</code>.
               </p>
             </div>
 
             {/* Reset */}
             <div className="text-center pt-2">
-              <button
-                onClick={() => document.getElementById("top")?.scrollIntoView({ behavior: "smooth" })}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs rounded-md glass hover:border-brand-primary/40 transition-colors"
-              >
+              <button onClick={() => document.getElementById("top")?.scrollIntoView({ behavior: "smooth" })}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs rounded-md glass hover:border-brand-primary/40 transition-colors">
                 <X className="h-3.5 w-3.5" /> New search
               </button>
             </div>
@@ -579,7 +279,318 @@ export default function LiveResults({ email }: { email: string }) {
   );
 }
 
-// ----------------- Sub-components -----------------
+// -------------------- SourceCards (main report content) --------------------
+// Matches the original site's pattern: vertical list of rich source cards.
+// Each card shows: service name + name + title/bio + structured data fields.
+
+function SourceCards({ data }: { data: LookupResult }) {
+  // Collect all matched services (confirmed first, then guesses) and build rich cards for each
+  const matched = data.services.filter(s => s.matched);
+  const cards: JSX.Element[] = [];
+
+  // 1. Mail Provider card (always shown if MX exists)
+  if (data.mx.hasMx) {
+    cards.push(
+      <SourceCard
+        key="mail-provider"
+        serviceName="Mail Provider"
+        icon={Server}
+        confidence="high"
+        verifiedVia="dns-txt"
+        avatarUrl={undefined}
+        displayName={data.mx.provider || "Unknown"}
+        subtitle={`DNS · ${data.validation.domain}`}
+        profileUrl={`https://1.1.1.1/?name=${data.validation.domain}#dns`}
+        fields={[
+          { label: "Provider", value: data.mx.provider || data.mx.mxRecords[0] || "Unknown" },
+          { label: "MX Records", value: String(data.mx.mxRecords.length) },
+          { label: "Primary MX", value: data.mx.mxRecords[0] || "—" },
+          { label: "Domain", value: data.validation.domain },
+          ...(data.validation.isServiceEmail ? [{ label: "Email Type", value: `Service email (${data.validation.serviceType}@)` }] : []),
+        ]}
+      />
+    );
+  }
+
+  // 2. GitHub card (rich if found)
+  if (data.github.found) {
+    const g = data.github;
+    cards.push(
+      <SourceCard
+        key="github"
+        serviceName="GitHub"
+        icon={Github}
+        confidence="high"
+        verifiedVia="github-email"
+        avatarUrl={g.avatarUrl || undefined}
+        displayName={g.name || g.login || "GitHub User"}
+        subtitle={g.bio || (g.company ? `${g.company}` : "Developer")}
+        profileUrl={g.profileUrl || "https://github.com"}
+        sections={[
+          {
+            title: "Profile",
+            icon: User,
+            fields: [
+              { label: "Username", value: `@${g.login}` },
+              ...(g.name ? [{ label: "Name", value: g.name }] : []),
+              ...(g.bio ? [{ label: "Bio", value: g.bio }] : []),
+              ...(g.company ? [{ label: "Company", value: g.company }] : []),
+              ...(g.location ? [{ label: "Location", value: g.location }] : []),
+              ...(g.blog ? [{ label: "Blog", value: g.blog }] : []),
+              ...(g.twitterUsername ? [{ label: "Twitter", value: `@${g.twitterUsername}` }] : []),
+              ...(g.createdAt ? [{ label: "Joined", value: g.createdAt.slice(0, 10) }] : []),
+            ]
+          },
+          {
+            title: "Statistics",
+            icon: Award,
+            fields: [
+              ...(g.followers != null ? [{ label: "Followers", value: g.followers.toLocaleString() }] : []),
+              ...(g.following != null ? [{ label: "Following", value: g.following.toLocaleString() }] : []),
+              ...(g.publicRepos != null ? [{ label: "Public Repos", value: String(g.publicRepos) }] : []),
+              ...(g.publicGists != null ? [{ label: "Public Gists", value: String(g.publicGists) }] : []),
+            ]
+          }
+        ]}
+      />
+    );
+  }
+
+  // 3. Gravatar card (if exists)
+  if (data.gravatar.exists) {
+    const gv = data.gravatar;
+    cards.push(
+      <SourceCard
+        key="gravatar"
+        serviceName="Gravatar"
+        icon={Camera}
+        confidence="high"
+        verifiedVia="github-email"
+        avatarUrl={gv.photoUrl || undefined}
+        displayName={gv.displayName || "Gravatar User"}
+        subtitle={gv.about || "Globally recognized avatar"}
+        profileUrl={gv.profileUrl}
+        sections={[
+          {
+            title: "Profile",
+            icon: User,
+            fields: [
+              ...(gv.displayName ? [{ label: "Display Name", value: gv.displayName }] : []),
+              ...(gv.about ? [{ label: "About", value: gv.about }] : []),
+              { label: "Hash", value: gv.hash },
+              ...(gv.accounts?.length ? [{ label: "Linked Accounts", value: String(gv.accounts.length) }] : []),
+            ]
+          }
+        ]}
+      />
+    );
+  }
+
+  // 4. Data Breach Exposure card (always shown when hibp.checked)
+  {
+    const hibp = data.hibp;
+    if (hibp.checked) {
+      cards.push(
+        <SourceCard
+          key="breaches"
+          serviceName="Data Breach Exposure"
+          icon={ShieldAlert}
+          confidence="high"
+          verifiedVia="hibp-breach"
+          avatarUrl={undefined}
+          displayName={hibp.count === 0 ? "No breaches found" : `Found in ${hibp.count} breach${hibp.count === 1 ? "" : "es"}`}
+          subtitle={hibp.breaches.length > 0
+            ? `${hibp.breaches[0].breachDate} → ${hibp.breaches[hibp.breaches.length - 1].breachDate}`
+            : "Email is clean"}
+          profileUrl="https://haveibeenpwned.com"
+          accent={hibp.count > 0 ? "red" : "green"}
+          sections={hibp.breaches.length > 0 ? [
+            {
+              title: "Breach Sources",
+              icon: ShieldAlert,
+              fields: hibp.breaches.slice(0, 6).map(b => ({
+                label: b.name,
+                value: `${b.breachDate} · ${b.dataClasses.slice(0, 3).join(", ")}`,
+              })),
+            }
+          ] : undefined}
+        />
+      );
+    } else if (hibp.error) {
+      cards.push(
+        <SourceCard
+          key="breaches-unavail"
+          serviceName="Data Breach Exposure"
+          icon={ShieldAlert}
+          confidence="low"
+          verifiedVia="username-guess"
+          avatarUrl={undefined}
+          displayName="Breach scan unavailable"
+          subtitle="Set HIBP_API_TOKEN to enable"
+          profileUrl="https://haveibeenpwned.com"
+          accent="yellow"
+        />
+      );
+    }
+  }
+
+  // 5. Other matched services — each as a card
+  for (const s of matched) {
+    if (s.service === "GitHub" || s.service === "Gravatar") continue; // already shown
+    if (s.service === "Mail Provider") continue;
+    if (s.service === "Data Breach Exposure") continue;
+
+    const Icon = SERVICE_ICONS[s.icon] || Globe;
+    const isConfirmed = s.matchType === "email" && s.verifiedVia !== "username-guess";
+
+    cards.push(
+      <SourceCard
+        key={s.service}
+        serviceName={s.service}
+        icon={Icon}
+        confidence={isConfirmed ? "high" : "low"}
+        verifiedVia={s.verifiedVia}
+        avatarUrl={s.avatarUrl}
+        displayName={s.displayName || s.username || s.service}
+        subtitle={s.bio || (isConfirmed ? "Confirmed via real email check" : "Username-guess match — verify manually")}
+        profileUrl={s.profileUrl}
+        accent={isConfirmed ? "green" : "yellow"}
+        sections={[
+          {
+            title: "Profile",
+            icon: User,
+            fields: [
+              ...(s.username ? [{ label: "Username", value: s.username === data.email ? "email match" : `@${s.username}` }] : []),
+              ...(s.displayName ? [{ label: "Display Name", value: s.displayName }] : []),
+              ...(s.bio ? [{ label: "Bio", value: s.bio }] : []),
+              ...(s.location ? [{ label: "Location", value: s.location }] : []),
+              ...(s.joinedAt ? [{ label: "Joined", value: s.joinedAt }] : []),
+              ...(s.followerCount != null ? [{ label: "Followers", value: s.followerCount.toLocaleString() }] : []),
+              ...(s.followingCount != null ? [{ label: "Following", value: s.followingCount.toLocaleString() }] : []),
+              ...(s.postCount != null ? [{ label: "Posts", value: s.postCount.toLocaleString() }] : []),
+              ...(s.extra ? Object.entries(s.extra).map(([k, v]) => ({
+                label: k.replace(/_/g, " "), value: v,
+              })) : []),
+              { label: "Match Type", value: isConfirmed ? "Email-based (definitive)" : "Username-guess (heuristic)" },
+            ]
+          }
+        ]}
+      />
+    );
+  }
+
+  return <div className="space-y-4">{cards}</div>;
+}
+
+// -------------------- SourceCard (one rich card per service) --------------------
+
+interface CardField { label: string; value: string; }
+interface CardSection { title: string; icon: any; fields: CardField[]; }
+
+function SourceCard({
+  serviceName, icon: Icon, confidence, verifiedVia, avatarUrl, displayName,
+  subtitle, profileUrl, sections, fields, accent,
+}: {
+  serviceName: string;
+  icon: any;
+  confidence: "high" | "medium" | "low";
+  verifiedVia?: string;
+  avatarUrl?: string;
+  displayName: string;
+  subtitle?: string;
+  profileUrl: string;
+  sections?: CardSection[];
+  fields?: CardField[];
+  accent?: "green" | "yellow" | "red" | "default";
+}) {
+  const accentRing = accent === "green" ? "ring-green-400/30 bg-green-400/[0.04]" :
+                      accent === "yellow" ? "ring-yellow-300/20 bg-yellow-300/[0.04]" :
+                      accent === "red" ? "ring-red-400/30 bg-red-400/[0.04]" :
+                      "ring-white/10";
+
+  return (
+    <div className={`rounded-2xl glass p-5 sm:p-6 ring-1 ${accentRing} animate-slide-in lift-on-hover`}>
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Service icon / avatar */}
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10 overflow-hidden shrink-0">
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <Icon className="h-6 w-6 text-brand-primary" />
+            )}
+          </div>
+          {/* Service + name */}
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wider text-text-accent/70">{serviceName}</p>
+            <p className="text-base font-semibold truncate">{displayName}</p>
+            {subtitle && <p className="text-xs text-text-accent truncate mt-0.5">{subtitle}</p>}
+          </div>
+        </div>
+        {/* Verification badge */}
+        {verifiedVia && (
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            {confidence === "high" ? (
+              <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full ring-1 bg-green-400/15 text-green-300 ring-green-400/30">
+                <Check className="h-2.5 w-2.5" /> Confirmed
+              </span>
+            ) : confidence === "medium" ? (
+              <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full ring-1 bg-yellow-300/15 text-yellow-300 ring-yellow-300/30">
+                ~ Likely
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full ring-1 bg-white/5 text-text-accent ring-white/10">
+                ? Unverified
+              </span>
+            )}
+            <span className="text-[9px] text-text-accent/70 font-mono">{verifiedVia}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Top-level fields (when no sections) */}
+      {fields && fields.length > 0 && (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4">
+          {fields.map((f, i) => (
+            <div key={i} className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-text-accent/60">{f.label}</p>
+              <p className="text-sm text-text-primary break-words">{f.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Sections (rich structured data) */}
+      {sections && sections.map((section, i) => (
+        <div key={i} className={i > 0 ? "mt-4 pt-4 border-t border-white/5" : ""}>
+          <div className="flex items-center gap-2 mb-3">
+            <section.icon className="h-3.5 w-3.5 text-brand-primary/70" />
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-accent">{section.title}</p>
+            <span className="ml-auto text-[10px] text-text-accent/60">{section.fields.length} items</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+            {section.fields.map((f, j) => (
+              <div key={j} className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-text-accent/60">{f.label}</p>
+                <p className="text-sm text-text-primary break-words">{f.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* Footer: View source button */}
+      <a href={profileUrl} target="_blank" rel="noopener noreferrer"
+        className="mt-4 inline-flex items-center gap-1.5 text-xs text-brand-primary hover:underline">
+        <ExternalLink className="h-3.5 w-3.5" /> View source
+      </a>
+    </div>
+  );
+}
+
+// -------------------- Identity banner --------------------
 
 function IdentityBanner({ data }: { data: LookupResult }) {
   const primaryPhoto = data.identityPhotos[0]?.url || data.gravatar.photoUrl || data.github.avatarUrl;
@@ -588,51 +599,34 @@ function IdentityBanner({ data }: { data: LookupResult }) {
 
   return (
     <div className="relative rounded-2xl glass-strong p-5 sm:p-7 overflow-hidden">
-      {/* Background gradient */}
       <div className="absolute inset-0 hero-glow opacity-30 pointer-events-none" />
       <div className="relative flex flex-col sm:flex-row sm:items-center gap-5">
         <div className="relative shrink-0">
           {primaryPhoto ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={primaryPhoto}
-              alt="Avatar"
-              className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl ring-2 ring-brand-primary/40 object-cover shadow-xl shadow-brand-primary/20"
-            />
+            <img src={primaryPhoto} alt="Avatar" className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl ring-2 ring-brand-primary/40 object-cover shadow-xl shadow-brand-primary/20" />
           ) : (
             <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl bg-gradient-to-br from-brand-primary/30 to-brand-primary/5 ring-2 ring-brand-primary/40 flex items-center justify-center text-3xl font-bold text-brand-primary">
               {(data.validation.localPart[0] || "?").toUpperCase()}
             </div>
           )}
           {data.sourcesMatched >= 2 && (
-            <span className="absolute -bottom-1.5 -right-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-primary text-[10px] text-[#081016] font-bold ring-2 ring-[#0B1117]">
-              ✓
-            </span>
+            <span className="absolute -bottom-1.5 -right-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-primary text-[10px] text-[#081016] font-bold ring-2 ring-[#0B1117]">✓</span>
           )}
-          {/* Photo count badge */}
           {data.identityPhotos.length > 1 && (
-            <span className="absolute -top-1.5 -right-1.5 inline-flex h-6 px-1.5 items-center justify-center rounded-full bg-[#192229] ring-1 ring-white/15 text-[10px] font-mono text-brand-primary">
-              +{data.identityPhotos.length - 1}
-            </span>
+            <span className="absolute -top-1.5 -right-1.5 inline-flex h-6 px-1.5 items-center justify-center rounded-full bg-[#192229] ring-1 ring-white/15 text-[10px] font-mono text-brand-primary">+{data.identityPhotos.length - 1}</span>
           )}
         </div>
-
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h3 className="text-2xl sm:text-3xl font-bold break-all">{displayName}</h3>
             <span className="font-mono text-xs text-text-accent break-all">{data.email}</span>
           </div>
-          {data.github.bio && (
-            <p className="mt-1 text-sm text-text-accent italic">{data.github.bio}</p>
-          )}
+          {data.github.bio && <p className="mt-1 text-sm text-text-accent italic">{data.github.bio}</p>}
           <p className="mt-2 text-sm text-text-accent">{data.summary}</p>
           <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-            <span className="rounded-full bg-brand-primary/10 ring-1 ring-brand-primary/30 px-2.5 py-0.5 text-brand-primary">
-              {data.sourcesMatched} sources matched
-            </span>
-            <span className={`rounded-full px-2.5 py-0.5 ring-1 ${
-              data.sourcesMatched >= 2 ? "bg-brand-primary/10 text-brand-primary ring-brand-primary/30" : "bg-white/5 text-text-accent ring-white/10"
-            }`}>
+            <span className="rounded-full bg-brand-primary/10 ring-1 ring-brand-primary/30 px-2.5 py-0.5 text-brand-primary">{data.sourcesMatched} sources matched</span>
+            <span className={`rounded-full px-2.5 py-0.5 ring-1 ${data.sourcesMatched >= 2 ? "bg-brand-primary/10 text-brand-primary ring-brand-primary/30" : "bg-white/5 text-text-accent ring-white/10"}`}>
               {data.sourcesMatched >= 2 ? "Verified identity" : "Partial signals"}
             </span>
             <span className={`rounded-full px-2.5 py-0.5 ring-1 ${
@@ -640,17 +634,10 @@ function IdentityBanner({ data }: { data: LookupResult }) {
               data.riskScore === "Moderate" ? "bg-yellow-300/10 text-yellow-300 ring-yellow-300/30" :
               data.riskScore === "Elevated" ? "bg-orange-400/10 text-orange-300 ring-orange-300/30" :
               "bg-red-400/10 text-red-300 ring-red-300/30"
-            }`}>
-              Risk: {data.riskScore}
-            </span>
+            }`}>Risk: {data.riskScore}</span>
             {followerCount != null && followerCount > 0 && (
               <span className="rounded-full bg-blue-400/10 ring-1 ring-blue-400/30 px-2.5 py-0.5 text-blue-300">
                 <Users className="inline h-3 w-3 mr-1" /> {followerCount.toLocaleString()} followers
-              </span>
-            )}
-            {data.validation.isServiceEmail && (
-              <span className="rounded-full bg-purple-400/10 text-purple-300 ring-1 ring-purple-300/30 px-2.5 py-0.5">
-                Service email ({data.validation.serviceType}@)
               </span>
             )}
           </div>
@@ -660,32 +647,24 @@ function IdentityBanner({ data }: { data: LookupResult }) {
   );
 }
 
+// -------------------- PhotoWall --------------------
+
 function PhotoWall({ photos }: { photos: IdentityPhoto[] }) {
   return (
     <div className="rounded-2xl glass p-5 sm:p-6">
       <div className="flex items-center gap-2 mb-4">
         <Camera className="h-4 w-4 text-brand-primary" />
-        <h3 className="text-sm font-semibold">Identity Photo Wall</h3>
-        <span className="text-[11px] text-text-accent">· {photos.length} avatars collected from matched accounts</span>
+        <h3 className="text-sm font-semibold">Identity Photos</h3>
+        <span className="text-[11px] text-text-accent">· {photos.length} avatars aggregated from matched services</span>
       </div>
       <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
         {photos.map((p, i) => (
-          <a
-            key={p.service + i}
-            href={p.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group relative aspect-square rounded-xl overflow-hidden ring-1 ring-white/10 hover:ring-brand-primary/40 transition-all lift-on-hover"
-            title={`${p.service} avatar — click to view full size`}
-          >
+          <a key={p.service + i} href={p.url} target="_blank" rel="noopener noreferrer"
+            className="group relative aspect-square rounded-xl overflow-hidden ring-1 ring-white/10 hover:ring-brand-primary/40 transition-all"
+            title={`${p.service} avatar — click to view full size`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={p.url}
-              alt={`${p.service} avatar`}
-              className="h-full w-full object-cover"
-              loading="lazy"
+            <img src={p.url} alt={`${p.service} avatar`} className="h-full w-full object-cover" loading="lazy"
               onError={(e) => {
-                // Fallback: show service initial
                 const target = e.currentTarget as HTMLImageElement;
                 target.style.display = "none";
                 const parent = target.parentElement;
@@ -695,20 +674,16 @@ function PhotoWall({ photos }: { photos: IdentityPhoto[] }) {
                   div.textContent = p.service[0];
                   parent.appendChild(div);
                 }
-              }}
-            />
-            <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 py-1 text-[9px] font-medium text-white truncate">
-              {p.service}
-            </span>
+              }} />
+            <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 py-1 text-[9px] font-medium text-white truncate">{p.service}</span>
           </a>
         ))}
       </div>
-      <p className="mt-3 text-[11px] text-text-accent/70">
-        Click any avatar to view the full-size original. Hover to highlight. If a service doesn&apos;t expose an avatar publicly, no photo will appear.
-      </p>
     </div>
   );
 }
+
+// -------------------- Timeline --------------------
 
 function Timeline({ timeline }: { timeline: TimelineEvent[] }) {
   return (
@@ -719,28 +694,18 @@ function Timeline({ timeline }: { timeline: TimelineEvent[] }) {
         <span className="text-[11px] text-text-accent">· {timeline.length} dated events</span>
       </div>
       <div className="relative pl-4">
-        {/* Vertical line */}
         <div className="absolute left-0 top-1 bottom-1 w-px bg-gradient-to-b from-brand-primary/40 via-white/10 to-transparent" />
         <div className="space-y-3">
           {timeline.map((ev, i) => (
             <div key={i} className="relative flex items-start gap-3 animate-slide-in" style={{ animationDelay: `${i * 50}ms` }}>
-              {/* Dot */}
-              <span className={`absolute -left-4 top-2 inline-flex h-2 w-2 rounded-full ring-2 ring-[#0B1117] bg-gradient-to-br ${CATEGORY_COLORS[ev.category] || "bg-brand-primary"}`} />
+              <span className="absolute -left-4 top-2 inline-flex h-2 w-2 rounded-full ring-2 ring-[#0B1117] bg-brand-primary" />
               <div className="flex-1 flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <a
-                    href={ev.profileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-text-primary hover:text-brand-primary transition-colors truncate"
-                  >
-                    {ev.service}
-                  </a>
+                  <a href={ev.profileUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-sm text-text-primary hover:text-brand-primary transition-colors truncate">{ev.service}</a>
                   <p className="text-[10px] text-text-accent/70 font-mono">{ev.date}</p>
                 </div>
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full ring-1 bg-gradient-to-br ${CATEGORY_COLORS[ev.category] || "bg-white/5 ring-white/10"}`}>
-                  {CATEGORY_LABELS[ev.category] || ev.category}
-                </span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full ring-1 bg-white/5 ring-white/10 text-text-accent">{ev.category}</span>
               </div>
             </div>
           ))}
@@ -750,93 +715,108 @@ function Timeline({ timeline }: { timeline: TimelineEvent[] }) {
   );
 }
 
+// -------------------- Registered Accounts (compact bottom list — matches original) --------------------
+
+function RegisteredAccounts({ services }: { services: ServiceProbe[] }) {
+  const matched = services.filter(s => s.matched);
+  if (matched.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl glass p-5 sm:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Link2 className="h-4 w-4 text-brand-primary" />
+          <h3 className="text-sm font-semibold">Registered Accounts</h3>
+        </div>
+        <span className="text-[11px] text-text-accent">{matched.length} accounts found</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {matched.map((s, i) => {
+          const Icon = SERVICE_ICONS[s.icon] || Globe;
+          const isConfirmed = s.matchType === "email" && s.verifiedVia !== "username-guess";
+          return (
+            <a key={s.service + i} href={s.profileUrl} target="_blank" rel="noopener noreferrer"
+              className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg ring-1 transition-all ${
+                isConfirmed ? "bg-green-400/[0.06] ring-green-400/20 hover:bg-green-400/[0.10]"
+                            : "bg-white/[0.02] ring-white/5 hover:ring-white/10"
+              }`}>
+              <div className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-white/5 ring-1 ring-white/10 overflow-hidden shrink-0">
+                {s.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={s.avatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <Icon className={`h-4 w-4 ${isConfirmed ? "text-green-300" : "text-text-accent/70"}`} />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">{s.service}</p>
+                {s.username && (
+                  <p className="text-[10px] font-mono text-text-accent truncate">
+                    {s.username === services[0]?.email ? "email match" : `@${s.username}`}
+                  </p>
+                )}
+              </div>
+              {isConfirmed ? <Check className="h-3.5 w-3.5 text-green-300 shrink-0" />
+                           : <span className="text-[9px] text-yellow-300 shrink-0">~</span>}
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// -------------------- ServicesMatrix (all probed services — keep but compact) --------------------
+
 function ServicesMatrix({ services, probesByCategory }: { services: ServiceProbe[]; probesByCategory: Record<string, number> }) {
   const byCategory: Record<string, ServiceProbe[]> = {};
   for (const s of services) {
     if (!byCategory[s.category]) byCategory[s.category] = [];
     byCategory[s.category].push(s);
   }
-
   const matchedCount = services.filter((s) => s.matched).length;
-  const totalCount = services.length;
 
   return (
     <div className="rounded-2xl glass p-5 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold">Services &amp; accounts probed</h3>
-          <p className="text-[11px] text-text-accent mt-0.5">
-            Each service was checked for an account matching this email or its local-part as username.
-          </p>
+          <h3 className="text-sm font-semibold">All services probed</h3>
+          <p className="text-[11px] text-text-accent mt-0.5">Each service checked for an account matching this email or its local-part</p>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-bold text-brand-gradient">{matchedCount}/{totalCount}</p>
+          <p className="text-xl font-bold text-brand-gradient">{matchedCount}/{services.length}</p>
           <p className="text-[10px] text-text-accent uppercase tracking-wider">matched</p>
         </div>
       </div>
-
-      <div className="space-y-4">
+      <div className="space-y-3">
         {Object.entries(byCategory).map(([cat, items]) => {
           const matchedInCat = items.filter((i) => i.matched).length;
           return (
             <div key={cat}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] uppercase tracking-wider text-text-accent/70 flex items-center gap-2">
-                  <span className={`inline-flex h-2 w-2 rounded-full bg-gradient-to-br ${CATEGORY_COLORS[cat] || "bg-white/20"}`} />
-                  {CATEGORY_LABELS[cat] || cat}
-                </p>
-                <span className="text-[10px] text-text-accent/70">
-                  {matchedInCat}/{items.length}
-                </span>
+                <p className="text-[10px] uppercase tracking-wider text-text-accent/70">{cat}</p>
+                <span className="text-[10px] text-text-accent/70">{matchedInCat}/{items.length}</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
                 {items.map((s) => {
                   const Icon = SERVICE_ICONS[s.icon] || Globe;
                   const isConfirmed = s.matched && s.matchType === "email" && s.verifiedVia !== "username-guess";
                   const tileClass = !s.matched
-                    ? "bg-white/[0.02] ring-white/5 hover:ring-white/10"
+                    ? "bg-white/[0.02] ring-white/5"
                     : isConfirmed
-                    ? "bg-green-400/[0.08] ring-green-400/30 hover:bg-green-400/[0.12]"
-                    : "bg-yellow-300/[0.06] ring-yellow-300/20 hover:bg-yellow-300/[0.10]";
-                  const iconColor = !s.matched
-                    ? "text-text-accent/50"
-                    : isConfirmed
-                    ? "text-green-300"
-                    : "text-yellow-300";
-                  const title = !s.matched
-                    ? "No account found"
-                    : isConfirmed
-                    ? `✓ Confirmed via ${s.verifiedVia} — definitive match`
-                    : `Username-guess match — verify manually`;
+                    ? "bg-green-400/[0.08] ring-green-400/30"
+                    : "bg-yellow-300/[0.06] ring-yellow-300/20";
+                  const iconColor = !s.matched ? "text-text-accent/50"
+                                   : isConfirmed ? "text-green-300" : "text-yellow-300";
                   return (
-                    <a
-                      key={s.service}
-                      href={s.profileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`group flex items-center gap-2 px-3 py-2 rounded-lg ring-1 transition-all ${tileClass}`}
-                      title={title}
-                    >
-                      <Icon className={`h-3.5 w-3.5 shrink-0 ${iconColor}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-medium truncate ${s.matched ? "text-text-primary" : "text-text-accent/70"}`}>
-                          {s.service}
-                        </p>
-                        {s.matched && s.username && (
-                          <p className="text-[10px] font-mono text-text-accent truncate">
-                            {s.username === s.email ? "email match" : `@${s.username}`}
-                          </p>
-                        )}
-                      </div>
-                      {s.matched ? (
-                        isConfirmed ? (
-                          <Check className="h-3.5 w-3.5 text-green-300 shrink-0" />
-                        ) : (
-                          <span className="text-[9px] text-yellow-300 shrink-0">~</span>
-                        )
-                      ) : (
-                        <X className="h-3.5 w-3.5 text-text-accent/40 shrink-0" />
-                      )}
+                    <a key={s.service} href={s.profileUrl} target="_blank" rel="noopener noreferrer"
+                      className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-md ring-1 transition-all ${tileClass}`}
+                      title={s.matched ? (isConfirmed ? `Confirmed via ${s.verifiedVia}` : "Username guess") : "No account found"}>
+                      <Icon className={`h-3 w-3 shrink-0 ${iconColor}`} />
+                      <p className={`text-[11px] font-medium truncate ${s.matched ? "text-text-primary" : "text-text-accent/70"}`}>{s.service}</p>
+                      {s.matched ? (isConfirmed ? <Check className="h-3 w-3 text-green-300 shrink-0 ml-auto" />
+                                                 : <span className="text-yellow-300 shrink-0 ml-auto text-[10px]">~</span>)
+                                 : <X className="h-3 w-3 text-text-accent/40 shrink-0 ml-auto" />}
                     </a>
                   );
                 })}
@@ -845,247 +825,23 @@ function ServicesMatrix({ services, probesByCategory }: { services: ServiceProbe
           );
         })}
       </div>
-
-      <div className="mt-5 pt-4 border-t border-white/5 flex flex-wrap items-center gap-4 text-[10px] text-text-accent/70">
-        <span className="inline-flex items-center gap-1.5">
-          <Check className="h-3 w-3 text-green-300" /> Confirmed (real email check)
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="text-yellow-300 font-bold">~</span> Username guess (heuristic)
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <X className="h-3 w-3 text-text-accent/40" /> No account found
-        </span>
-        <span className="text-text-accent/50">
-          Green tiles are confirmed via real email-based API checks (Firefox Accounts, GitHub email search, HIBP breaches, Gravatar links, password-reset flows).
-          Yellow tiles are heuristic username guesses and may be false positives.
-        </span>
-      </div>
     </div>
   );
 }
 
-function CategoryBreakdown({ services }: { services: ServiceProbe[] }) {
-  const total = services.length;
-  const matched = services.filter((s) => s.matched).length;
-  if (total === 0) return null;
+// -------------------- StatCard --------------------
 
-  // Calculate category stats
-  const stats: Array<{ cat: string; total: number; matched: number }> = [];
-  const byCat: Record<string, ServiceProbe[]> = {};
-  for (const s of services) {
-    if (!byCat[s.category]) byCat[s.category] = [];
-    byCat[s.category].push(s);
-  }
-  for (const [cat, items] of Object.entries(byCat)) {
-    stats.push({
-      cat,
-      total: items.length,
-      matched: items.filter((i) => i.matched).length,
-    });
-  }
-  stats.sort((a, b) => b.matched - a.matched || b.total - a.total);
-
-  return (
-    <div className="rounded-2xl glass p-5 sm:p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="h-4 w-4 text-brand-primary" />
-        <h3 className="text-sm font-semibold">Category breakdown</h3>
-        <span className="text-[11px] text-text-accent">· where this email shows up online</span>
-      </div>
-      <div className="space-y-3">
-        {stats.map((s) => {
-          const pct = s.total > 0 ? (s.matched / s.total) * 100 : 0;
-          const colorClass = CATEGORY_COLORS[s.cat] || "bg-white/20 ring-white/10";
-          return (
-            <div key={s.cat}>
-              <div className="flex items-center justify-between text-xs mb-1">
-                <span className="text-text-accent">{CATEGORY_LABELS[s.cat] || s.cat}</span>
-                <span className="font-mono text-text-accent/80">{s.matched}/{s.total}</span>
-              </div>
-              <div className="h-2 rounded-full bg-white/[0.05] overflow-hidden">
-                <div
-                  className={`h-full bg-gradient-to-r ${colorClass.split(" ").filter(c => c.includes("from-") || c.includes("to-") || c.includes("text-")).join(" ") || "from-brand-primary/40 to-brand-primary"} transition-all duration-700`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function DetailedCard({ card, idx }: { card: any; idx: number }) {
-  const Icon = card.icon;
-  const badge = MATCH_BADGE[card.matchStrength] || MATCH_BADGE.weak;
-  return (
-    <div
-      className="rounded-xl glass p-4 lift-on-hover animate-slide-in relative overflow-hidden"
-      style={{ animationDelay: `${idx * 60}ms` }}
-    >
-      {/* Banner */}
-      {card.bannerUrl && (
-        <div className="absolute inset-x-0 top-0 h-16 overflow-hidden opacity-30 -z-10">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={card.bannerUrl} alt="" className="w-full h-full object-cover" />
-        </div>
-      )}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/5 ring-1 ring-white/10 overflow-hidden shrink-0">
-            {card.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={card.photoUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <Icon className="h-4 w-4" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold truncate">{card.title}</p>
-            <p className="text-[10px] text-text-accent/70 font-mono truncate max-w-[140px]">{card.source}</p>
-          </div>
-        </div>
-        <span className={`text-[9px] px-1.5 py-0.5 rounded-full ring-1 ${badge.color}`}>
-          {badge.label}
-        </span>
-      </div>
-      <div className="space-y-1.5">
-        {card.fields.map((f: any, i: number) => (
-          <div key={i} className="flex items-start gap-2 py-0.5">
-            <span className="text-[10px] uppercase tracking-wider text-text-accent/70 w-24 shrink-0 pt-0.5 break-words">
-              {f.label}
-            </span>
-            <span className="text-xs text-text-primary flex-1 break-words">{f.value}</span>
-          </div>
-        ))}
-      </div>
-      <a
-        href={card.source.startsWith("http") ? card.source : `https://${card.source.split("/")[0]}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-3 inline-flex items-center gap-1 text-[10px] text-brand-primary hover:underline"
-      >
-        <ExternalLink className="h-3 w-3" /> View source
-      </a>
-    </div>
-  );
-}
-
-const MATCH_BADGE: Record<string, { label: string; color: string }> = {
-  strong:    { label: "Strong match",    color: "text-brand-primary bg-brand-primary/10 ring-brand-primary/30" },
-  moderate:  { label: "Moderate match",  color: "text-yellow-300 bg-yellow-300/10 ring-yellow-300/30" },
-  weak:      { label: "Weak signal",     color: "text-text-accent bg-white/5 ring-white/10" },
-  none:      { label: "No match",        color: "text-text-accent/50 bg-white/5 ring-white/10" },
-};
-
-function StatCard({ label, value, icon: Icon, accent }: { label: string; value: string; icon: any; accent?: "green" | "yellow" | "default" }) {
-  const accentClass = accent === "green"
-    ? "from-green-400/30 to-green-400/5"
-    : accent === "yellow"
-    ? "from-yellow-300/30 to-yellow-300/5"
-    : "";
+function StatCard({ label, value, icon: Icon, accent }: { label: string; value: string; icon: any; accent?: "green" | "yellow" | "red" | "default" }) {
+  const accentClass = accent === "green" ? "from-green-400/30 to-green-400/5"
+                    : accent === "yellow" ? "from-yellow-300/30 to-yellow-300/5"
+                    : accent === "red" ? "from-red-400/30 to-red-400/5"
+                    : "";
   return (
     <div className="rounded-xl glass p-4 text-center relative overflow-hidden">
-      {accent && (
-        <div className={`absolute inset-0 bg-gradient-to-br ${accentClass} opacity-30 pointer-events-none`} />
-      )}
+      {accent && <div className={`absolute inset-0 bg-gradient-to-br ${accentClass} opacity-30 pointer-events-none`} />}
       <Icon className="absolute top-2 right-2 h-3 w-3 text-brand-primary/30" />
       <p className="relative text-2xl sm:text-3xl font-bold text-brand-gradient">{value}</p>
       <p className="relative mt-1 text-[10px] text-text-accent uppercase tracking-wider">{label}</p>
-    </div>
-  );
-}
-
-// ----------------- ConfirmedAccounts sub-component -----------------
-// This is the headline section: shows accounts confirmed via REAL
-// email-based checks (not username guesses). These are definitive matches.
-
-function ConfirmedAccounts({ accounts }: { accounts: ServiceProbe[] }) {
-  if (accounts.length === 0) return null;
-
-  return (
-    <div className="rounded-2xl p-5 sm:p-6 relative overflow-hidden ring-2 ring-green-400/30 bg-gradient-to-br from-green-400/[0.06] via-transparent to-transparent">
-      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-green-400/40 to-transparent" />
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Check className="h-4 w-4 text-green-300" />
-            <h3 className="text-sm font-semibold">Confirmed accounts</h3>
-          </div>
-          <p className="text-[11px] text-text-accent mt-0.5">
-            Verified via real email-based API checks — not username guesses.
-          </p>
-        </div>
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-400/15 ring-1 ring-green-400/30 text-green-300 text-xs font-bold">
-          {accounts.length} confirmed
-        </span>
-      </div>
-
-      <div className="space-y-2">
-        {accounts.map((acc, i) => {
-          const Icon = SERVICE_ICONS[acc.icon] || Globe;
-          const verifiedViaInfo = VERIFIED_VIA_LABELS[acc.verifiedVia || "username-guess"];
-          return (
-            <a
-              key={acc.service + i}
-              href={acc.profileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] ring-1 ring-white/10 hover:ring-green-400/30 hover:bg-green-400/[0.04] transition-all animate-slide-in"
-              style={{ animationDelay: `${i * 60}ms` }}
-              title={verifiedViaInfo?.description}
-            >
-              {/* Avatar / icon */}
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 ring-1 ring-white/10 overflow-hidden shrink-0">
-                {acc.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={acc.avatarUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <Icon className="h-5 w-5 text-green-300" />
-                )}
-              </div>
-
-              {/* Identity info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold truncate">{acc.service}</p>
-                  <Check className="h-3 w-3 text-green-300 shrink-0" />
-                </div>
-                {acc.displayName && (
-                  <p className="text-xs text-text-accent truncate">{acc.displayName}</p>
-                )}
-                {acc.username && acc.username !== acc.email && (
-                  <p className="text-[10px] font-mono text-text-accent/70 truncate">@{acc.username}</p>
-                )}
-                {acc.extra?.Confirmed_via && (
-                  <p className="text-[10px] text-text-accent/60 truncate mt-0.5">{acc.extra.Confirmed_via}</p>
-                )}
-              </div>
-
-              {/* Verification badge */}
-              <span className={`text-[9px] px-1.5 py-0.5 rounded-full ring-1 ${verifiedViaInfo?.color || "text-text-accent bg-white/5 ring-white/10"}`}>
-                {verifiedViaInfo?.label}
-              </span>
-
-              <ExternalLink className="h-3.5 w-3.5 text-text-accent/40 group-hover:text-green-300 transition-colors shrink-0" />
-            </a>
-          );
-        })}
-      </div>
-
-      {/* Trust footer */}
-      <div className="mt-4 pt-3 border-t border-white/5 text-[10px] text-text-accent/70 flex items-start gap-2">
-        <ShieldAlert className="h-3 w-3 text-green-300/60 mt-0.5 shrink-0" />
-        <p className="leading-relaxed">
-          These accounts were confirmed via real API checks against the email
-          address itself — Firefox Accounts API, GitHub email search, HIBP
-          breach correlation, Gravatar linked accounts, or password-reset
-          flows. <strong className="text-text-accent">These are definitive</strong>{" "}
-          (no username guessing involved).
-        </p>
-      </div>
     </div>
   );
 }

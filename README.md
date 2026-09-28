@@ -2,7 +2,15 @@
 
 A faithful recreation of [behindtheemail.com](https://behindtheemail.com) — a dark-mode SaaS landing page for an OSINT (Open-Source Intelligence) email-intelligence platform. Built with **Next.js 16**, **TypeScript**, **Tailwind CSS 4**, and **shadcn/ui**.
 
-Live demo: **https://behindtheemail.pages.dev**
+## 🌐 Live demos
+
+| Host | URL | Auto-deploy on push |
+|------|-----|---------------------|
+| **Cloudflare Pages** (primary) | https://behindtheemail.pages.dev | ✅ via wrangler |
+| **GitHub Pages** (mirror) | https://mahmoudalabsi.github.io/behindtheemail/ | ✅ via GitHub Actions |
+
+Both demos hit the same Cloudflare Worker backend at:
+https://behindtheemail-osint.mahmoudalabsi0599.workers.dev
 
 ## ✨ Features
 

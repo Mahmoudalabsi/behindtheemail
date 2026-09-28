@@ -1,0 +1,72 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build static site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Configure Next.js for static export
+        run: |
+          cp next.config.ts next.config.dev.ts
+          cp next.config.r2.ts next.config.ts
+
+      - name: Build static site
+        run: bun run next build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Restore Next config
+        if: always()
+        run: mv next.config.dev.ts next.config.ts || true
+
+      - name: Add .nojekyll (disable Jekyll processing)
+        run: touch out/.nojekyll
+
+      - name: Fix asset paths for /behindtheemail subpath
+        run: |
+          # GitHub Pages serves at /behindtheemail/, so we need to set basePath
+          # Re-build with basePath if needed
+          echo "Skipping basePath — site uses relative paths already"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -36,10 +36,11 @@ jobs:
           cp next.config.ts next.config.dev.ts
           cp next.config.r2.ts next.config.ts
 
-      - name: Build static site
+      - name: Build static site (with basePath for GitHub Pages subpath)
         run: bun run next build
         env:
           NEXT_TELEMETRY_DISABLED: 1
+          NEXT_BASE_PATH: /behindtheemail
 
       - name: Restore Next config
         if: always()
